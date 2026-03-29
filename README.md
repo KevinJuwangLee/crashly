@@ -40,14 +40,14 @@ That idea led us to build Crashly—an AI-powered lodging agent that connects yo
 
 ## Tech Stack
 Crashly was built using:
--	•	React Native + Expo – mobile frontend
--	•	TypeScript – unified codebase
--	•	Supabase (Postgres) – database + authentication + messaging
--	•	Anthropic API – AI agent (reasoning, ranking, messaging)
--	•	Tavily API – real-time web search
--	•	Google Places API – location + mapping
--	•	Supabase Edge Functions (Deno) – serverless backend logic
--	•	GitHub + VS Code – development & collaboration
+	•	React Native + Expo – mobile frontend
+	•	TypeScript – unified codebase
+	•	Supabase (Postgres) – database + authentication + messaging
+	•	Anthropic API – AI agent (reasoning, ranking, messaging)
+	•	Tavily API – real-time web search
+	•	Google Places API – location + mapping
+	•	Supabase Edge Functions (Deno) – serverless backend logic
+	•	GitHub + VS Code – development & collaboration
 
 ⸻
 
