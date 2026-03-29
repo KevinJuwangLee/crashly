@@ -4,8 +4,6 @@
 
 ### An AI agent that finds you trusted, affordable lodging through your network.
 
-⸻
-
 ## Inspiration
 
 As students traveling for hackathons like YHack, we quickly realized that finding a place to stay was one of the hardest parts of the experience. Hotels were expensive, often required guests to be 21+, and coordinating with friends or mutual connections was unreliable.
@@ -13,8 +11,6 @@ As students traveling for hackathons like YHack, we quickly realized that findin
 We kept asking: why isn’t there a smarter way to use the college networks we already have?
 
 That idea led us to build Crashly—an AI-powered lodging agent that connects your network with real housing options.
-
-⸻
 
 ## Features
 
@@ -25,8 +21,6 @@ That idea led us to build Crashly—an AI-powered lodging agent that connects yo
 - 📍 Location-based search with mapping integration
 - 🔒 .edu verification system for trusted student access
 
-⸻
-
 ## How It Works
 -	1.	Enter your destination, dates, and travel purpose
 -	2.	Crashly’s AI agent searches in three stages:
@@ -35,8 +29,6 @@ That idea led us to build Crashly—an AI-powered lodging agent that connects yo
 		c. External housing sources
 - 	3.	Results are ranked and explained based on trust and fit
 - 	4.	Send structured requests to hosts directly in-app
-
-⸻
 
 ## Tech Stack
 Crashly was built using:
@@ -49,17 +41,19 @@ Crashly was built using:
 -	Supabase Edge Functions (Deno) – serverless backend logic
 -	GitHub + VS Code – development & collaboration
 
-⸻
 
 ## Installation & Running Crashly
 
 To run Crashly locally:
 -	1.	Clone the repository
 -	2.	Install dependencies
+'''
  	  npm install
+'''
 -	3.	Start the Expo development server
- 	 npx expo start
-
+'''
+ 	npx expo start
+'''
 -	4.	Open in:
 	•	iOS Simulator
 	•	Android Emulator
