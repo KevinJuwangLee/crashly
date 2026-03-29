@@ -30,9 +30,9 @@ That idea led us to build Crashly—an AI-powered lodging agent that connects yo
 ## How It Works
 -	1.	Enter your destination, dates, and travel purpose
 -	2.	Crashly’s AI agent searches in three stages:
--		•	Direct connections
-		•	Friends-of-friends
-		•	External housing sources
+-		a. Direct connections
+		b. Friends-of-friends
+		c. External housing sources
 - 	3.	Results are ranked and explained based on trust and fit
 - 	4.	Send structured requests to hosts directly in-app
 
