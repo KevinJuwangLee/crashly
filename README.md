@@ -63,9 +63,6 @@ GOOGLE_PLACES_API_KEY=your_google_places_api_key
 ```
 
 4. Set up Supabase  
-- Create a project on Supabase  
-- Run the required database schema (tables for users, connections, trips, messaging)  
-- Enable authentication (email/.edu recommended)  
 
 5. Start the Expo server  
 ```bash
