@@ -1,4 +1,5 @@
-<img width="300" height="300" alt="Screenshot 2026-03-29 at 10 09 35 AM" src="https://github.com/user-attachments/assets/7908b9a9-371d-41a6-8309-2cd07272e8b3" />
+<img width="250" height="250" alt="Screenshot 2026-03-29 at 10 47 20 AM" src="https://github.com/user-attachments/assets/d92d475f-51e4-405a-a867-1cb24289ff17" />
+
 
 # Crashly 🤝🏠
 
