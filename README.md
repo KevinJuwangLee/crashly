@@ -45,15 +45,17 @@ Crashly was built using:
 ## Installation & Running Crashly
 
 To run Crashly locally:
--	1.	Clone the repository
--	2.	Install dependencies
-'''
- 	  npm install
-'''
--	3.	Start the Expo development server
-'''
- 	npx expo start
-'''
+- 1. Clone the repository  
+- 2. Install dependencies  
+
+```bash
+npm install
+```
+
+- 3. Start the Expo server  
+```bash
+npx expo start
+```
 -	4.	Open in:
 	•	iOS Simulator
 	•	Android Emulator
