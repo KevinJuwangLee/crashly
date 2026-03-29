@@ -1,3 +1,5 @@
+<img width="200" height="200" alt="2" src="https://github.com/user-attachments/assets/c3c4762a-9fa0-425a-899a-bd9bf1610ac8" />
+
 # Crashly 🤝🏠
 
 ### An AI agent that finds you trusted, affordable lodging through your network.
@@ -16,47 +18,46 @@ That idea led us to build Crashly—an AI-powered lodging agent that connects yo
 
 ## Features
 
-🤝 Network-based housing search (friends → mutuals → extended network)
-🧠 AI-powered ranking based on trust, compatibility, and preferences
-🌐 Fallback to real listings (Airbnb, housing groups, rentals)
-💬 AI-generated outreach messages to contact hosts بسهولة
-📍 Location-based search with mapping integration
-🔒 .edu verification system for trusted student access
+- 🤝 Network-based housing search (friends → mutuals → extended network)
+- 🧠 AI-powered ranking based on trust, compatibility, and preferences
+- 🌐 Fallback to real listings (Airbnb, housing groups, rentals)
+- 💬 AI-generated outreach messages to contact hosts بسهولة
+- 📍 Location-based search with mapping integration
+- 🔒 .edu verification system for trusted student access
 
 ⸻
 
 ## How It Works
-	1.	Enter your destination, dates, and travel purpose
-	2.	Crashly’s AI agent searches in three stages:
-	•	Direct connections
-	•	Friends-of-friends
-	•	External housing sources
-	3.	Results are ranked and explained based on trust and fit
-	4.	Send structured requests to hosts directly in-app
+-	1.	Enter your destination, dates, and travel purpose
+-	2.	Crashly’s AI agent searches in three stages:
+-		•	Direct connections
+		•	Friends-of-friends
+		•	External housing sources
+- 	3.	Results are ranked and explained based on trust and fit
+- 	4.	Send structured requests to hosts directly in-app
 
 ⸻
 
 ## Tech Stack
 Crashly was built using:
-	•	React Native + Expo – mobile frontend
-	•	TypeScript – unified codebase
-	•	Supabase (Postgres) – database + authentication + messaging
-	•	Anthropic API – AI agent (reasoning, ranking, messaging)
-	•	Tavily API – real-time web search
-	•	Google Places API – location + mapping
-	•	Supabase Edge Functions (Deno) – serverless backend logic
-	•	GitHub + VS Code – development & collaboration
+-	•	React Native + Expo – mobile frontend
+-	•	TypeScript – unified codebase
+-	•	Supabase (Postgres) – database + authentication + messaging
+-	•	Anthropic API – AI agent (reasoning, ranking, messaging)
+-	•	Tavily API – real-time web search
+-	•	Google Places API – location + mapping
+-	•	Supabase Edge Functions (Deno) – serverless backend logic
+-	•	GitHub + VS Code – development & collaboration
 
 ⸻
 
 ## Installation & Running Crashly
 
 To run Crashly locally:
-	1.	Clone the repository
-	2.	Install dependencies
- 
-  npm install
-  npx expo start
+-	1.	Clone the repository
+-	2.	Install dependencies
+ 	  npm install
+ 	 npx expo start
 
   4.	Open in:
 	•	iOS Simulator
@@ -64,4 +65,4 @@ To run Crashly locally:
 	•	Expo Go (mobile device)
 
 ## Demo
-https://youtube.com/video/mOG1gWjKqoo 
+### [Click here to watch our Demo Video]([https://youtu.be/0YCHKEUEQG8?si=Tr9yKawvncQL8XgJ ](https://youtube.com/video/mOG1gWjKqoo )
