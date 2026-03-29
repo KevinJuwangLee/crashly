@@ -51,8 +51,13 @@ To run Crashly locally:
 ```bash
 npm install
 ```
-3. Set up environment variables  
-Create a `.env` file in the root directory and add the following:
+3. Set up Supabase  
+- Create a project on Supabase  
+- Set up your database schema (users, connections, trips, messaging)  
+- Enable authentication (email / .edu recommended)  
+- Copy your **Project URL** and **Anon Public Key**
+4. Set up environment variables  
+Create a `.env` file in the root directory and add:
 
 ```env
 EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
@@ -61,17 +66,13 @@ ANTHROPIC_API_KEY=your_anthropic_api_key
 TAVILY_API_KEY=your_tavily_api_key
 GOOGLE_PLACES_API_KEY=your_google_places_api_key
 ```
-
-4. Set up Supabase  
-
 5. Start the Expo server  
 ```bash
 npx expo start
 ```
-
 6. Open in:
 - iOS Simulator  
 - Android Emulator  
-- Expo Go (mobile device)  
+- Expo Go (mobile device)   
 
 ### [Click here to watch our Demo Video]([https://youtu.be/0YCHKEUEQG8?si=Tr9yKawvncQL8XgJ ](https://youtube.com/video/mOG1gWjKqoo )
