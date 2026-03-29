@@ -9,7 +9,11 @@ const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const SYSTEM_PROMPT = `You are a warm friendly housing agent for college students. Rank these direct connections by compatibility with the user then by rating. Consider: does willing_to_charge match user_willing_to_pay? Does gender_preference match? Does availability fit the trip dates? Do the user preferences match what the host offers? Write a warm 1 sentence summary for each. Return ONLY a valid JSON array with no extra text, with fields: name, university, rating, trust_score (1-10), compatibility_score (1-10), summary, willing_to_charge, availability, is_good_match (boolean)`;
+const SYSTEM_PROMPT = `You are a warm friendly housing agent for college students. Rank these direct connections by compatibility with the user then by rating. Consider: does willing_to_charge match user_willing_to_pay? Does gender_preference match? Does availability fit the trip dates? Do the user preferences match what the host offers? Write a warm 1 sentence summary for each.
+
+Each item in "connections" includes an "id" field (the profile UUID). For every object in your output array, you MUST include the same "id" string as the matching connection (same person as "name"). Do not invent or omit ids.
+
+Return ONLY a valid JSON array with no extra text, with fields: id, name, university, rating, trust_score (1-10), compatibility_score (1-10), summary, willing_to_charge, availability, is_good_match (boolean)`;
 
 const SYSTEM_PROMPT_DEGREE2 =
   "You are a warm friendly housing agent. These are second degree connections — people the user does not know directly. For each one write a short teaser (1 sentence) hinting at what they might offer without being too specific. Do not reveal their full name in the teaser. Rank by compatibility then rating. Return ONLY valid JSON array with fields: name, university, rating, trust_score (1-10), compatibility_score (1-10), teaser_summary, via_friend, willing_to_charge, requires_permission (always true)";
@@ -55,6 +59,33 @@ function errorResponse(message: string, status: number): Response {
 
 function normalizeLoc(s: string | undefined): string {
   return (s ?? '').trim().toLowerCase();
+}
+
+function normalizePersonName(s: string | undefined): string {
+  return (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Re-attach profile UUID from localProfiles by normalized name (authoritative). */
+function enrichDegree1ResultsWithProfileIds(
+  results: unknown[],
+  profiles: ProfileRow[],
+): unknown[] {
+  const byName = new Map<string, ProfileRow>();
+  for (const p of profiles) {
+    byName.set(normalizePersonName(p.name ?? ''), p);
+  }
+  return results.map((entry) => {
+    if (typeof entry !== 'object' || entry === null) return entry;
+    const o = entry as Record<string, unknown>;
+    const key = normalizePersonName(String(o.name ?? ''));
+    const profile = byName.get(key);
+    const id = profile?.id ?? null;
+    return {
+      ...o,
+      id,
+      profile_id: id,
+    };
+  });
 }
 
 /** e.g. "2026-04-04" -> "April 4 2026" */
@@ -409,6 +440,10 @@ Deno.serve(async (req: Request) => {
 
           try {
             degree1Results = parseClaudeJsonArray(text);
+            degree1Results = enrichDegree1ResultsWithProfileIds(
+              degree1Results,
+              localProfiles,
+            );
           } catch (e) {
             console.error('Failed to parse Claude JSON:', e, text.slice(0, 500));
             return errorResponse('Could not parse ranking results', 502);
@@ -522,6 +557,7 @@ Deno.serve(async (req: Request) => {
         }
 
         let withVia: Degree2LocalProfile[] = [];
+        const viaFriendProfileIdByName = new Map<string, string>();
 
         if (pendingBridge.length > 0) {
           const bridgeUserIdsNeeded = [
@@ -542,6 +578,10 @@ Deno.serve(async (req: Request) => {
           for (const bp of bridgeProfiles ?? []) {
             const row = bp as { id: string; name: string | null };
             idToName.set(row.id, row.name ?? 'Friend');
+            const nk = normalizePersonName(row.name ?? '');
+            if (nk && !viaFriendProfileIdByName.has(nk)) {
+              viaFriendProfileIdByName.set(nk, row.id);
+            }
           }
 
           withVia = pendingBridge.map(({ profile, bridgeUserId }) => ({
@@ -588,6 +628,17 @@ Deno.serve(async (req: Request) => {
 
           try {
             degree2Results = parseClaudeJsonArray(claude2.text);
+            degree2Results = degree2Results.map((entry) => {
+              if (typeof entry !== 'object' || entry === null) return entry;
+              const o = entry as Record<string, unknown>;
+              const vf = normalizePersonName(String(o.via_friend ?? ''));
+              const pid = viaFriendProfileIdByName.get(vf);
+              return {
+                ...o,
+                via_friend_profile_id: pid ?? null,
+                via_friend_id: pid ?? null,
+              };
+            });
           } catch (e) {
             console.error(
               'Failed to parse Claude JSON (degree 2):',

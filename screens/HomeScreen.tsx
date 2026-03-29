@@ -1,5 +1,6 @@
 import {
   RouteProp,
+  useFocusEffect,
   useNavigation,
   useRoute,
 } from '@react-navigation/native';
@@ -16,6 +17,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,7 +32,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import type { RootStackParamList } from '../App';
 import { supabase } from '../lib/supabase';
-import type { CrashlyRole, OnboardingData } from '../types/onboarding';
 import universitiesJson from '../assets/universities.json';
 
 type HomeNav = StackNavigationProp<RootStackParamList, 'Home'>;
@@ -42,6 +43,11 @@ type UniversityRow = {
 };
 
 const UNIVERSITIES: readonly UniversityRow[] = universitiesJson as UniversityRow[];
+
+/** Shown when `Home` has no onboarding params (matches handsome-dan + seed demo user). */
+const DEFAULT_PROFILE_FULL_NAME = 'Elihu Yale';
+const DEFAULT_PROFILE_UNIVERSITY = 'Yale University';
+const DEFAULT_PROFILE_LOCATION = 'New Haven, CT';
 
 export type SelectedLocation = {
   address: string;
@@ -350,6 +356,29 @@ function createStyles(t: Theme) {
       color: t.textMuted,
       marginBottom: 12,
     },
+    tripsEmpty: {
+      fontSize: 15,
+      color: t.textMuted,
+      marginTop: 4,
+      marginBottom: 8,
+    },
+    tripsLoading: {
+      fontSize: 14,
+      color: t.textMuted,
+      marginTop: 4,
+      marginBottom: 12,
+    },
+    tripStatusPill: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 20,
+    },
+    tripStatusPillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      letterSpacing: 0.2,
+    },
     pill: {
       alignSelf: 'flex-start',
       backgroundColor: t.pillBg,
@@ -362,6 +391,149 @@ function createStyles(t: Theme) {
       fontWeight: '600',
       color: t.pillText,
       letterSpacing: 0.2,
+    },
+    pastTripHost: {
+      fontSize: 14,
+      fontWeight: '500',
+      color: t.text,
+      marginTop: 6,
+      marginBottom: 14,
+      letterSpacing: -0.1,
+    },
+    pastTripFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    completedPill: {
+      alignSelf: 'flex-start',
+      backgroundColor: t.inputBorder,
+      paddingHorizontal: 11,
+      paddingVertical: 5,
+      borderRadius: 20,
+    },
+    completedPillText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: t.textMuted,
+      letterSpacing: 0.2,
+    },
+    rateHostBtn: {
+      paddingVertical: 7,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.text,
+      backgroundColor: 'transparent',
+    },
+    rateHostBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: t.text,
+      letterSpacing: 0.1,
+    },
+    rateSheetRoot: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    rateSheetBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: t.modalOverlay,
+    },
+    rateSheetPanel: {
+      backgroundColor: t.modalBg,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderLeftWidth: StyleSheet.hairlineWidth,
+      borderRightWidth: StyleSheet.hairlineWidth,
+      borderColor: t.cardBorder,
+      maxHeight: '88%',
+      paddingTop: 8,
+    },
+    rateSheetSafe: {
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      overflow: 'hidden',
+    },
+    rateSheetScrollContent: {
+      paddingHorizontal: 20,
+      paddingBottom: 16,
+      paddingTop: 12,
+    },
+    rateSheetTitle: {
+      fontSize: 18,
+      fontWeight: '500',
+      color: t.text,
+      marginBottom: 8,
+      letterSpacing: -0.2,
+    },
+    rateSheetHostLine: {
+      fontSize: 14,
+      color: t.textMuted,
+      marginBottom: 18,
+      lineHeight: 20,
+    },
+    rateStarsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      gap: 6,
+      marginBottom: 18,
+    },
+    rateStarHit: {
+      paddingVertical: 4,
+      paddingHorizontal: 4,
+    },
+    rateStarGlyph: {
+      fontSize: 34,
+      lineHeight: 40,
+    },
+    rateReviewInput: {
+      minHeight: 96,
+      maxHeight: 160,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.cardBorder,
+      backgroundColor: t.inputBg,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: t.text,
+      lineHeight: 22,
+    },
+    rateSubmitBtn: {
+      marginTop: 18,
+      paddingVertical: 15,
+      borderRadius: 14,
+      backgroundColor: t.primaryBg,
+      alignItems: 'center',
+    },
+    rateSubmitBtnDisabled: {
+      opacity: 0.45,
+    },
+    rateSubmitBtnText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: t.primaryText,
+    },
+    rateCancelBtn: {
+      marginTop: 14,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    rateCancelText: {
+      fontSize: 15,
+      fontWeight: '500',
+      color: t.textMuted,
+    },
+    rateSuccessText: {
+      marginTop: 14,
+      fontSize: 13,
+      fontWeight: '500',
+      color: '#4A7D5C',
+      textAlign: 'center',
     },
     reqCard: {
       backgroundColor: t.cardBg,
@@ -914,6 +1086,19 @@ function createStyles(t: Theme) {
       color: t.textMuted,
       textAlign: 'center',
     },
+    inboxBtn: {
+      position: 'absolute',
+      right: 68,
+      zIndex: 100,
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+    },
+    inboxLabel: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: t.text,
+      letterSpacing: -0.2,
+    },
     hamburgerBtn: {
       position: 'absolute',
       right: 20,
@@ -959,191 +1144,6 @@ function createStyles(t: Theme) {
     menuItemSignOut: {
       color: '#E05252',
     },
-    profileHeader: {
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingBottom: 20,
-    },
-    profileAvatar: {
-      width: 64,
-      height: 64,
-      borderRadius: 32,
-      backgroundColor: t.primaryBg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: 12,
-    },
-    profileInitials: {
-      fontSize: 22,
-      fontWeight: '600',
-      color: t.primaryText,
-    },
-    profileName: {
-      fontSize: 17,
-      fontWeight: '600',
-      color: t.text,
-      letterSpacing: -0.3,
-      marginBottom: 4,
-      textAlign: 'center',
-    },
-    profileUniversity: {
-      fontSize: 13,
-      color: t.textMuted,
-      textAlign: 'center',
-      marginBottom: 2,
-    },
-    profileLocation: {
-      fontSize: 13,
-      color: t.textMuted,
-      textAlign: 'center',
-    },
-    profileStats: {
-      flexDirection: 'row',
-      marginHorizontal: 20,
-      marginBottom: 16,
-      backgroundColor: t.cardBg,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: t.cardBorder,
-      overflow: 'hidden',
-    },
-    profileStat: {
-      flex: 1,
-      alignItems: 'center',
-      paddingVertical: 12,
-    },
-    profileStatNum: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: t.text,
-      letterSpacing: -0.3,
-    },
-    profileStatLabel: {
-      fontSize: 11,
-      color: t.textMuted,
-      marginTop: 2,
-      fontWeight: '500',
-    },
-    profileStatDivider: {
-      width: StyleSheet.hairlineWidth,
-      backgroundColor: t.cardBorder,
-    },
-    profileInfoBlock: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-    },
-    profileInfoLabel: {
-      fontSize: 13,
-      fontWeight: '500',
-      color: t.textMuted,
-    },
-    profileInfoValue: {
-      fontSize: 13,
-      fontWeight: '500',
-      color: t.text,
-      flexShrink: 1,
-      textAlign: 'right',
-      marginLeft: 12,
-    },
-    profileRatingRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginTop: 8,
-      gap: 4,
-    },
-    profileRatingStar: {
-      fontSize: 13,
-      color: '#F5A623',
-    },
-    profileRatingNum: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: t.text,
-    },
-    profileRatingCount: {
-      fontSize: 12,
-      color: t.textMuted,
-    },
-    profileSectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-    },
-    profileSectionTitle: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: t.textMuted,
-      letterSpacing: 0.4,
-      textTransform: 'uppercase',
-    },
-    profileEditBtn: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: t.text,
-    },
-    profileEditLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: t.textMuted,
-      marginBottom: 8,
-      textTransform: 'uppercase',
-      letterSpacing: 0.3,
-    },
-    profileChipRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-    },
-    profileChip: {
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 20,
-      borderWidth: 1,
-      borderColor: t.cardBorder,
-      backgroundColor: t.cardBg,
-    },
-    profileChipOn: {
-      backgroundColor: t.primaryBg,
-      borderColor: t.primaryBg,
-    },
-    profileChipText: {
-      fontSize: 13,
-      fontWeight: '500',
-      color: t.text,
-    },
-    profileChipTextOn: {
-      color: t.primaryText,
-    },
-    profileSaveBtn: {
-      flex: 1,
-      backgroundColor: t.primaryBg,
-      borderRadius: 10,
-      paddingVertical: 10,
-      alignItems: 'center',
-    },
-    profileSaveBtnText: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: t.primaryText,
-    },
-    profileCancelBtn: {
-      flex: 1,
-      backgroundColor: t.cardBg,
-      borderRadius: 10,
-      paddingVertical: 10,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: t.cardBorder,
-    },
-    profileCancelBtnText: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: t.text,
-    },
     menuProfileRow: {
       alignItems: 'center',
       paddingHorizontal: 16,
@@ -1155,13 +1155,11 @@ function createStyles(t: Theme) {
       height: 42,
       borderRadius: 21,
       backgroundColor: t.primaryBg,
-      alignItems: 'center',
-      justifyContent: 'center',
+      overflow: 'hidden',
     },
-    menuProfileInitials: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: t.primaryText,
+    menuProfileAvatarImage: {
+      width: '100%',
+      height: '100%',
     },
     menuProfileName: {
       fontSize: 15,
@@ -1194,11 +1192,49 @@ function toISODateLocal(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-const MOCK_TRIPS = [
-  { id: '1', destination: 'Austin, TX', dates: 'Mar 4 – Mar 8, 2026', status: 'Searching' },
-  { id: '2', destination: 'Denver, CO', dates: 'Apr 12 – Apr 16, 2026', status: 'Confirmed' },
-  { id: '3', destination: 'Portland, OR', dates: 'May 2 – May 5, 2026', status: 'Searching' },
-] as const;
+const TRIPS_USER_ID = 2;
+
+const TRIP_STATUS_PILL = {
+  searching: { bg: '#F4E4BC', fg: '#5C4A1A', label: 'Searching' as const },
+  confirmed: { bg: '#D4EDDA', fg: '#1E5B3A', label: 'Confirmed' as const },
+  completed: { bg: '#E5E2DC', fg: '#6B6965', label: 'Completed' as const },
+} as const;
+
+type TripRow = {
+  id: string;
+  user_id?: number;
+  destination_city?: string | null;
+  destination_state?: string | null;
+  date_from?: string | null;
+  date_to?: string | null;
+  status?: string | null;
+  created_at?: string;
+};
+
+function tripStatusMeta(status: string | null | undefined) {
+  const s = (status ?? '').toLowerCase().trim();
+  if (s === 'confirmed') return TRIP_STATUS_PILL.confirmed;
+  if (s === 'completed') return TRIP_STATUS_PILL.completed;
+  return TRIP_STATUS_PILL.searching;
+}
+
+function formatTripDestination(city: string | null | undefined, state: string | null | undefined) {
+  const c = (city ?? '').trim();
+  const st = (state ?? '').trim();
+  if (c && st) return `${c}, ${st}`;
+  return c || st || 'Trip';
+}
+
+const MOCK_PAST_TRIP = {
+  destination: 'Boston, MA',
+  dates: 'Mar 10 - Mar 13, 2026',
+  hostLine: 'Samuel Okonkwo · MIT',
+  hostProfileName: 'Samuel Okonkwo',
+  hostUniversity: 'MIT',
+} as const;
+
+const RATE_STAR_GOLD = '#F4A623';
+const RATE_STAR_EMPTY = '#D4D1CB';
 
 type ConnectionEntry = { id: string; name: string; university: string };
 
@@ -1218,8 +1254,25 @@ export default function HomeScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const onboarding = route.params?.onboarding;
-  const firstName = onboarding?.firstName?.trim();
-  const displayName = firstName || 'there';
+
+  const profileFullName = useMemo(
+    () =>
+      [onboarding?.firstName, onboarding?.lastName]
+        .map((s) => s?.trim())
+        .filter(Boolean)
+        .join(' ')
+        .trim() || DEFAULT_PROFILE_FULL_NAME,
+    [onboarding?.firstName, onboarding?.lastName],
+  );
+  const profileUniversity =
+    onboarding?.university?.trim() || DEFAULT_PROFILE_UNIVERSITY;
+  const profileLocation =
+    onboarding?.city?.trim() || DEFAULT_PROFILE_LOCATION;
+
+  const displayName =
+    onboarding?.firstName?.trim() ||
+    profileFullName.split(/\s+/).filter(Boolean)[0] ||
+    'there';
 
   const collapsedClip = useMemo(
     () => Math.round(screenHeight * COLLAPSED_HEIGHT_RATIO),
@@ -1232,38 +1285,49 @@ export default function HomeScreen() {
 
   const [expanded, setExpanded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'home' | 'connections' | 'profile'>('home');
+  const [activeView, setActiveView] = useState<'home' | 'connections'>('home');
   const [requests, setRequests] = useState<ConnectionEntry[]>(INITIAL_REQUESTS);
   const [connections, setConnections] = useState<ConnectionEntry[]>([]);
-  const [profileEditing, setProfileEditing] = useState(false);
-  const [editRole, setEditRole] = useState<CrashlyRole | null>(onboarding?.role ?? null);
-  const [editCohabit, setEditCohabit] = useState<OnboardingData['cohabitPreference'] | null>(onboarding?.cohabitPreference ?? null);
-  const [editPaying, setEditPaying] = useState<OnboardingData['paying'] | null>(onboarding?.paying ?? null);
-  const [editCharging, setEditCharging] = useState<OnboardingData['charging'] | null>(onboarding?.charging ?? null);
-  const [savedRole, setSavedRole] = useState<CrashlyRole | null>(onboarding?.role ?? null);
-  const [savedCohabit, setSavedCohabit] = useState<OnboardingData['cohabitPreference'] | null>(onboarding?.cohabitPreference ?? null);
-  const [savedPaying, setSavedPaying] = useState<OnboardingData['paying'] | null>(onboarding?.paying ?? null);
-  const [savedCharging, setSavedCharging] = useState<OnboardingData['charging'] | null>(onboarding?.charging ?? null);
 
-  const startEdit = useCallback(() => {
-    setEditRole(savedRole);
-    setEditCohabit(savedCohabit);
-    setEditPaying(savedPaying);
-    setEditCharging(savedCharging);
-    setProfileEditing(true);
-  }, [savedRole, savedCohabit, savedPaying, savedCharging]);
+  const rateSheetAnim = useRef(new Animated.Value(520)).current;
+  const [rateSheetVisible, setRateSheetVisible] = useState(false);
+  const [rateStars, setRateStars] = useState(0);
+  const [rateReviewText, setRateReviewText] = useState('');
+  const [rateSubmitting, setRateSubmitting] = useState(false);
+  const [rateSuccess, setRateSuccess] = useState(false);
+  const [pastTripHostRated, setPastTripHostRated] = useState(false);
+  const [trips, setTrips] = useState<TripRow[]>([]);
+  const [tripsLoading, setTripsLoading] = useState(true);
 
-  const saveEdit = useCallback(() => {
-    setSavedRole(editRole);
-    setSavedCohabit(editCohabit);
-    setSavedPaying(editPaying);
-    setSavedCharging(editCharging);
-    setProfileEditing(false);
-  }, [editRole, editCohabit, editPaying, editCharging]);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
 
-  const cancelEdit = useCallback(() => {
-    setProfileEditing(false);
-  }, []);
+      const run = async () => {
+        setTripsLoading(true);
+        const { data, error } = await supabase
+          .from('trips')
+          .select('*')
+          .eq('user_id', TRIPS_USER_ID)
+          .order('created_at', { ascending: false });
+
+        console.log('Fetched trips:', JSON.stringify(data));
+        if (error) {
+          console.log('Trips fetch error:', JSON.stringify(error));
+        }
+
+        if (!cancelled) {
+          setTrips((data as TripRow[] | null) ?? []);
+          setTripsLoading(false);
+        }
+      };
+
+      void run();
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
 
   const acceptRequest = useCallback((id: string) => {
     setRequests((prev) => {
@@ -1296,6 +1360,63 @@ export default function HomeScreen() {
       useNativeDriver: true,
     }).start(() => setMenuOpen(false));
   }, [menuSlide, screenWidth]);
+
+  const closeRateSheetAnimated = useCallback(() => {
+    Animated.timing(rateSheetAnim, {
+      toValue: 520,
+      duration: 260,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setRateSheetVisible(false);
+      setRateSuccess(false);
+      setRateStars(0);
+      setRateReviewText('');
+    });
+  }, [rateSheetAnim]);
+
+  const openRateSheet = useCallback(() => {
+    setRateSuccess(false);
+    setRateStars(0);
+    setRateReviewText('');
+    setRateSheetVisible(true);
+  }, []);
+
+  const closeRateSheet = useCallback(() => {
+    if (rateSubmitting) return;
+    closeRateSheetAnimated();
+  }, [rateSubmitting, closeRateSheetAnimated]);
+
+  useEffect(() => {
+    if (!rateSheetVisible) return;
+    rateSheetAnim.setValue(520);
+    Animated.spring(rateSheetAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 68,
+      friction: 12,
+    }).start();
+  }, [rateSheetVisible, rateSheetAnim]);
+
+  const submitHostReview = useCallback(async () => {
+    if (rateStars < 1 || rateSubmitting) return;
+    setRateSubmitting(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ rating: rateStars })
+      .eq('name', MOCK_PAST_TRIP.hostProfileName);
+    setRateSubmitting(false);
+    if (error) {
+      Alert.alert('Could not submit review', error.message);
+      return;
+    }
+    setPastTripHostRated(true);
+    setRateSuccess(true);
+    setTimeout(() => {
+      closeRateSheetAnimated();
+    }, 2000);
+  }, [rateStars, rateSubmitting, closeRateSheetAnimated]);
+
   const [destinationCity, setDestinationCity] = useState('');
   const [destinationState, setDestinationState] = useState('');
   const [preferences, setPreferences] = useState('');
@@ -1781,6 +1902,13 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
+      <Pressable
+        style={[styles.inboxBtn, { top: insets.top + 12 }]}
+        onPress={() => navigation.navigate('Inbox')}
+        hitSlop={12}
+      >
+        <Text style={styles.inboxLabel}>Inbox</Text>
+      </Pressable>
       {/* Hamburger button — floats top-right above everything */}
       <Pressable
         style={[styles.hamburgerBtn, { top: insets.top + 12 }]}
@@ -1808,19 +1936,24 @@ export default function HomeScreen() {
               {/* Profile identity at top of panel */}
               <Pressable
                 style={styles.menuProfileRow}
-                onPress={() => { setActiveView('profile'); closeMenu(); }}
+                onPress={() => {
+                  closeMenu();
+                  navigation.navigate('Profile');
+                }}
               >
                 <View style={styles.menuProfileAvatar}>
-                  <Text style={styles.menuProfileInitials}>
-                    {`${onboarding?.firstName?.trim()?.[0] ?? ''}${onboarding?.lastName?.trim()?.[0] ?? ''}`.toUpperCase() || '?'}
-                  </Text>
+                  <Image
+                    source={require('../assets/handsome-dan.jpg')}
+                    style={styles.menuProfileAvatarImage}
+                    resizeMode="cover"
+                  />
                 </View>
                 <Text style={styles.menuProfileName} numberOfLines={1}>
-                  {[onboarding?.firstName, onboarding?.lastName].filter(Boolean).join(' ') || 'Your Name'}
+                  {profileFullName}
                 </Text>
-                {onboarding?.university ? (
-                  <Text style={styles.menuProfileSub} numberOfLines={1}>{onboarding.university}</Text>
-                ) : null}
+                <Text style={styles.menuProfileSub} numberOfLines={1}>
+                  {profileUniversity}
+                </Text>
               </Pressable>
 
               <View style={styles.menuDivider} />
@@ -1829,8 +1962,14 @@ export default function HomeScreen() {
                 <Text style={[styles.menuItemText, activeView === 'home' && styles.menuItemActive]}>Home</Text>
               </Pressable>
               <View style={styles.menuDivider} />
-              <Pressable style={styles.menuItem} onPress={() => { setActiveView('profile'); closeMenu(); }}>
-                <Text style={[styles.menuItemText, activeView === 'profile' && styles.menuItemActive]}>Profile</Text>
+              <Pressable
+                style={styles.menuItem}
+                onPress={() => {
+                  closeMenu();
+                  navigation.navigate('Profile');
+                }}
+              >
+                <Text style={styles.menuItemText}>Profile</Text>
               </Pressable>
               <View style={styles.menuDivider} />
               <Pressable style={styles.menuItem} onPress={() => { setActiveView('connections'); closeMenu(); }}>
@@ -1846,6 +1985,104 @@ export default function HomeScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      <Modal
+        visible={rateSheetVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeRateSheet}
+      >
+        <KeyboardAvoidingView
+          style={styles.rateSheetRoot}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable
+            style={styles.rateSheetBackdrop}
+            onPress={closeRateSheet}
+            disabled={rateSubmitting || rateSuccess}
+          />
+          <Animated.View
+            style={[
+              styles.rateSheetPanel,
+              { transform: [{ translateY: rateSheetAnim }] },
+            ]}
+          >
+            <SafeAreaView edges={['bottom']} style={styles.rateSheetSafe}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.rateSheetScrollContent}
+              >
+                <Text style={styles.rateSheetTitle}>Rate your stay</Text>
+                <Text style={styles.rateSheetHostLine}>
+                  {`${MOCK_PAST_TRIP.hostProfileName}\n${MOCK_PAST_TRIP.hostUniversity}`}
+                </Text>
+                {rateSuccess ? (
+                  <Text style={styles.rateSuccessText}>Review submitted!</Text>
+                ) : (
+                  <>
+                    <View style={styles.rateStarsRow}>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Pressable
+                          key={n}
+                          style={styles.rateStarHit}
+                          onPress={() => setRateStars(n)}
+                          hitSlop={4}
+                        >
+                          <Text
+                            style={[
+                              styles.rateStarGlyph,
+                              {
+                                color:
+                                  n <= rateStars
+                                    ? RATE_STAR_GOLD
+                                    : RATE_STAR_EMPTY,
+                              },
+                            ]}
+                          >
+                            ★
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <TextInput
+                      style={styles.rateReviewInput}
+                      value={rateReviewText}
+                      onChangeText={setRateReviewText}
+                      placeholder="Share your experience..."
+                      placeholderTextColor={theme.placeholder}
+                      multiline
+                      maxLength={2000}
+                      textAlignVertical="top"
+                    />
+                    <Pressable
+                      style={[
+                        styles.rateSubmitBtn,
+                        (rateStars < 1 || rateSubmitting) &&
+                          styles.rateSubmitBtnDisabled,
+                      ]}
+                      onPress={() => void submitHostReview()}
+                      disabled={rateStars < 1 || rateSubmitting}
+                    >
+                      <Text style={styles.rateSubmitBtnText}>
+                        Submit review
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={closeRateSheet}
+                      disabled={rateSubmitting}
+                      style={styles.rateCancelBtn}
+                    >
+                      <Text style={styles.rateCancelText}>Cancel</Text>
+                    </Pressable>
+                  </>
+                )}
+              </ScrollView>
+            </SafeAreaView>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -1857,8 +2094,8 @@ export default function HomeScreen() {
           style={[
             styles.domeScrollSection,
             {
-              height: activeView === 'profile' ? 0 : collapsedClip,
-              opacity: expanded ? 0 : activeView === 'profile' ? 0 : 1,
+              height: collapsedClip,
+              opacity: expanded ? 0 : 1,
             },
           ]}
           pointerEvents={expanded ? 'none' : 'auto'}
@@ -1902,145 +2139,69 @@ export default function HomeScreen() {
                   <Text style={styles.addBtn}>Add</Text>
                 </Pressable>
               </View>
-              {MOCK_TRIPS.map((trip) => (
-                <View key={trip.id} style={styles.tripCard}>
-                  <Text style={styles.tripDest}>{trip.destination}</Text>
-                  <Text style={styles.tripDates}>{trip.dates}</Text>
-                  <View style={styles.pill}>
-                    <Text style={styles.pillText}>{trip.status}</Text>
-                  </View>
-                </View>
-              ))}
-            </>
-          )}
-
-          {activeView === 'profile' && (
-            <>
-              {/* Avatar + name */}
-              <View style={[styles.profileHeader, { marginTop: insets.top + 20 }]}>
-                <View style={styles.profileAvatar}>
-                  <Text style={styles.profileInitials}>
-                    {`${onboarding?.firstName?.trim()?.[0] ?? ''}${onboarding?.lastName?.trim()?.[0] ?? ''}`.toUpperCase() || '?'}
-                  </Text>
-                </View>
-                <Text style={styles.profileName}>
-                  {[onboarding?.firstName, onboarding?.lastName].filter(Boolean).join(' ') || 'Your Name'}
-                </Text>
-                {onboarding?.university ? <Text style={styles.profileUniversity}>{onboarding.university}</Text> : null}
-                {onboarding?.city ? <Text style={styles.profileLocation}>{onboarding.city}</Text> : null}
-                <View style={styles.profileRatingRow}>
-                  <Text style={styles.profileRatingStar}>★★★★★</Text>
-                  <Text style={styles.profileRatingNum}>4.8</Text>
-                  <Text style={styles.profileRatingCount}>(12 reviews)</Text>
-                </View>
-              </View>
-
-              {/* Stats */}
-              <View style={styles.profileStats}>
-                <View style={styles.profileStat}>
-                  <Text style={styles.profileStatNum}>{connections.length}</Text>
-                  <Text style={styles.profileStatLabel}>Connections</Text>
-                </View>
-                <View style={styles.profileStatDivider} />
-                <View style={styles.profileStat}>
-                  <Text style={styles.profileStatNum}>{requests.length}</Text>
-                  <Text style={styles.profileStatLabel}>Pending</Text>
-                </View>
-              </View>
-
-              {/* Info / Edit */}
-              <View style={styles.profileSectionHeader}>
-                <Text style={styles.profileSectionTitle}>About</Text>
-                {!profileEditing && (
-                  <Pressable onPress={startEdit} hitSlop={8}>
-                    <Text style={styles.profileEditBtn}>Edit</Text>
-                  </Pressable>
-                )}
-              </View>
-
-              {profileEditing ? (
-                <View style={{ gap: 16, marginBottom: 16 }}>
-                  <View>
-                    <Text style={styles.profileEditLabel}>Role</Text>
-                    <View style={styles.profileChipRow}>
-                      {([['stay', 'Stay'], ['host', 'Host'], ['both', 'Both']] as const).map(([val, label]) => (
-                        <Pressable key={val} style={[styles.profileChip, editRole === val && styles.profileChipOn]} onPress={() => setEditRole(val)}>
-                          <Text style={[styles.profileChipText, editRole === val && styles.profileChipTextOn]}>{label}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                  <View>
-                    <Text style={styles.profileEditLabel}>Preference</Text>
-                    <View style={styles.profileChipRow}>
-                      {([['same_gender', 'Same gender'], ['no_preference', 'No preference'], ['open', 'Open']] as const).map(([val, label]) => (
-                        <Pressable key={val} style={[styles.profileChip, editCohabit === val && styles.profileChipOn]} onPress={() => setEditCohabit(val)}>
-                          <Text style={[styles.profileChipText, editCohabit === val && styles.profileChipTextOn]}>{label}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </View>
-                  {(editRole === 'stay' || editRole === 'both') && (
-                    <View>
-                      <Text style={styles.profileEditLabel}>Paying</Text>
-                      <View style={styles.profileChipRow}>
-                        {([['yes_always', 'Always'], ['depends', 'Depends'], ['prefer_free', 'Free only']] as const).map(([val, label]) => (
-                          <Pressable key={val} style={[styles.profileChip, editPaying === val && styles.profileChipOn]} onPress={() => setEditPaying(val)}>
-                            <Text style={[styles.profileChipText, editPaying === val && styles.profileChipTextOn]}>{label}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                  {(editRole === 'host' || editRole === 'both') && (
-                    <View>
-                      <Text style={styles.profileEditLabel}>Hosting fee</Text>
-                      <View style={styles.profileChipRow}>
-                        {([['yes', 'Paid'], ['free', 'Free'], ['depends', 'Depends']] as const).map(([val, label]) => (
-                          <Pressable key={val} style={[styles.profileChip, editCharging === val && styles.profileChipOn]} onPress={() => setEditCharging(val)}>
-                            <Text style={[styles.profileChipText, editCharging === val && styles.profileChipTextOn]}>{label}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Pressable style={styles.profileSaveBtn} onPress={saveEdit}>
-                      <Text style={styles.profileSaveBtnText}>Save</Text>
-                    </Pressable>
-                    <Pressable style={styles.profileCancelBtn} onPress={cancelEdit}>
-                      <Text style={styles.profileCancelBtnText}>Cancel</Text>
-                    </Pressable>
-                  </View>
-                </View>
+              {tripsLoading ? (
+                <Text style={styles.tripsLoading}>Loading trips…</Text>
+              ) : trips.length === 0 ? (
+                <Text style={styles.tripsEmpty}>No upcoming trips yet</Text>
               ) : (
-                <>
-                  {savedRole && (
-                    <View style={styles.profileInfoBlock}>
-                      <Text style={styles.profileInfoLabel}>Role</Text>
-                      <Text style={styles.profileInfoValue}>{savedRole === 'stay' ? 'Looking to stay' : savedRole === 'host' ? 'Hosting others' : 'Stay & Host'}</Text>
+                trips.map((trip) => {
+                  const pill = tripStatusMeta(trip.status);
+                  const dest = formatTripDestination(
+                    trip.destination_city,
+                    trip.destination_state,
+                  );
+                  const df = (trip.date_from ?? '').trim();
+                  const dt = (trip.date_to ?? '').trim();
+                  const dateLine =
+                    df && dt ? `${df} to ${dt}` : df || dt || '';
+                  return (
+                    <View key={trip.id} style={styles.tripCard}>
+                      <Text style={styles.tripDest}>{dest}</Text>
+                      {dateLine ? (
+                        <Text style={styles.tripDates}>{dateLine}</Text>
+                      ) : null}
+                      <View
+                        style={[
+                          styles.tripStatusPill,
+                          { backgroundColor: pill.bg },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.tripStatusPillText,
+                            { color: pill.fg },
+                          ]}
+                        >
+                          {pill.label}
+                        </Text>
+                      </View>
                     </View>
-                  )}
-                  {savedCohabit && (
-                    <View style={styles.profileInfoBlock}>
-                      <Text style={styles.profileInfoLabel}>Preference</Text>
-                      <Text style={styles.profileInfoValue}>{savedCohabit === 'same_gender' ? 'Same gender only' : savedCohabit === 'no_preference' ? 'No preference' : 'Open to discuss'}</Text>
-                    </View>
-                  )}
-                  {savedPaying && (savedRole === 'stay' || savedRole === 'both') && (
-                    <View style={styles.profileInfoBlock}>
-                      <Text style={styles.profileInfoLabel}>Paying</Text>
-                      <Text style={styles.profileInfoValue}>{savedPaying === 'yes_always' ? 'Always' : savedPaying === 'depends' ? 'Depends' : 'Free only'}</Text>
-                    </View>
-                  )}
-                  {savedCharging && (savedRole === 'host' || savedRole === 'both') && (
-                    <View style={styles.profileInfoBlock}>
-                      <Text style={styles.profileInfoLabel}>Hosting fee</Text>
-                      <Text style={styles.profileInfoValue}>{savedCharging === 'yes' ? 'Paid' : savedCharging === 'free' ? 'Free' : 'Depends'}</Text>
-                    </View>
-                  )}
-                </>
+                  );
+                })
               )}
+
+              <View style={[styles.sectionHeader, { marginTop: 28 }]}>
+                <Text style={styles.sectionTitle}>Past trips</Text>
+              </View>
+              <View style={styles.tripCard}>
+                <Text style={styles.tripDest}>{MOCK_PAST_TRIP.destination}</Text>
+                <Text style={styles.tripDates}>{MOCK_PAST_TRIP.dates}</Text>
+                <Text style={styles.pastTripHost}>{MOCK_PAST_TRIP.hostLine}</Text>
+                <View style={styles.pastTripFooter}>
+                  <View style={styles.completedPill}>
+                    <Text style={styles.completedPillText}>Completed</Text>
+                  </View>
+                  {!pastTripHostRated ? (
+                    <Pressable
+                      style={styles.rateHostBtn}
+                      onPress={openRateSheet}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.rateHostBtnText}>Rate host</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
             </>
           )}
 

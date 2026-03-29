@@ -6,20 +6,28 @@ import {
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   ListRenderItem,
+  Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { IntroRequestCardView } from '../components/IntroRequestCardView';
+import type { IntroRequestPayload } from '../components/IntroRequestCardView';
 import type { RootStackParamList } from '../App';
-import { supabaseAnonKey } from '../lib/supabase';
+import { supabase, supabaseAnonKey } from '../lib/supabase';
 
 const FIND_HOUSING_URL =
   'https://mfvyjksetlmzfxrviadq.supabase.co/functions/v1/find-housing';
@@ -67,6 +75,7 @@ const D2_OMEGA: readonly [number, number][] = [
 ];
 
 const FIND_DEG2_MIN_MS = 3000;
+const MESSAGE_USER_ID = 2;
 
 type Route = RouteProp<RootStackParamList, 'Degree2Animation'>;
 type Nav = StackNavigationProp<RootStackParamList, 'Degree2Animation'>;
@@ -77,7 +86,18 @@ type Deg2Result = {
   rating?: number | null;
   teaser_summary?: string | null;
   via_friend?: string | null;
+  via_friend_profile_id?: string | null;
+  via_friend_id?: string | null;
 };
+
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  const a = parts[0]![0] ?? '';
+  const b = parts[parts.length - 1]![0] ?? '';
+  return (a + b).toUpperCase();
+}
 
 function OrbitLine({
   x1,
@@ -263,6 +283,20 @@ type Deg2Section = {
   people: Deg2Result[];
 };
 
+function bridgeProfileIdFromSection(section: Deg2Section): string | null {
+  for (const p of section.people) {
+    const raw = p.via_friend_id ?? p.via_friend_profile_id;
+    const id =
+      typeof raw === 'string' && raw.trim()
+        ? raw.trim()
+        : typeof raw === 'number'
+          ? String(raw)
+          : null;
+    if (id) return id;
+  }
+  return null;
+}
+
 export default function Degree2AnimationScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
@@ -443,6 +477,192 @@ export default function Degree2AnimationScreen() {
       })),
     [sections.length],
   );
+
+  const sheetAnim = useRef(new Animated.Value(520)).current;
+  const [introSheetVisible, setIntroSheetVisible] = useState(false);
+  const [introSheetSection, setIntroSheetSection] =
+    useState<Deg2Section | null>(null);
+  const [introPersonalNote, setIntroPersonalNote] = useState('');
+  const [introSubmitting, setIntroSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!introSheetVisible) return;
+    sheetAnim.setValue(520);
+    Animated.spring(sheetAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 68,
+      friction: 12,
+    }).start();
+  }, [introSheetVisible, sheetAnim]);
+
+  const closeIntroSheet = useCallback(() => {
+    if (introSubmitting) return;
+    Animated.timing(sheetAnim, {
+      toValue: 520,
+      duration: 260,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setIntroSheetVisible(false);
+      setIntroSheetSection(null);
+      setIntroPersonalNote('');
+    });
+  }, [introSubmitting, sheetAnim]);
+
+  const openIntroSheet = useCallback((section: Deg2Section) => {
+    const pid = bridgeProfileIdFromSection(section);
+    if (!pid) {
+      Alert.alert(
+        'Cannot start chat',
+        "Could not resolve that friend's profile.",
+      );
+      return;
+    }
+    setIntroSheetSection(section);
+    setIntroPersonalNote('');
+    setIntroSheetVisible(true);
+  }, []);
+
+  const submitIntroRequest = useCallback(async () => {
+    const section = introSheetSection;
+    if (!section || introSubmitting) return;
+
+    const profileId = bridgeProfileIdFromSection(section);
+    if (!profileId) {
+      Alert.alert(
+        'Cannot start chat',
+        "Could not resolve that friend's profile.",
+      );
+      return;
+    }
+
+    const vf = section.viaFriend.trim() || 'Friend';
+    const otherInitials = initialsFromName(vf);
+    const connectionsCount = section.people.length;
+
+    const introPayload = {
+      type: 'intro_request' as const,
+      via_friend: vf,
+      destination_city,
+      destination_state,
+      date_from,
+      date_to,
+      requester_name: 'Elihu Yale',
+      requester_university: 'Yale University',
+      personal_note: introPersonalNote.trim(),
+      connections_count: connectionsCount,
+      status: 'pending' as const,
+    };
+
+    setIntroSubmitting(true);
+
+    const q12 = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('user_id_1', MESSAGE_USER_ID)
+      .eq('user_id_2', profileId)
+      .maybeSingle();
+
+    let conversationId: string | null = q12.data?.id
+      ? String(q12.data.id)
+      : null;
+
+    if (!conversationId) {
+      const q21 = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('user_id_1', profileId)
+        .eq('user_id_2', MESSAGE_USER_ID)
+        .maybeSingle();
+
+      conversationId = q21.data?.id ? String(q21.data.id) : null;
+    }
+
+    if (!conversationId) {
+      const ins = await supabase
+        .from('conversations')
+        .insert({
+          user_id_1: MESSAGE_USER_ID,
+          user_id_2: profileId,
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (ins.error || !ins.data?.id) {
+        setIntroSubmitting(false);
+        Alert.alert(
+          'Could not start chat',
+          ins.error?.message ?? 'Failed to create conversation',
+        );
+        return;
+      }
+      conversationId = String(ins.data.id);
+    }
+
+    const msg = await supabase.from('messages').insert({
+      conversation_id: conversationId,
+      sender_id: MESSAGE_USER_ID,
+      content: JSON.stringify(introPayload),
+      is_trip_request: true,
+      created_at: new Date().toISOString(),
+    });
+
+    if (msg.error) {
+      setIntroSubmitting(false);
+      Alert.alert('Could not send request', msg.error.message);
+      return;
+    }
+
+    const destSummary = `Introduction request · ${destination_city.trim()}`;
+
+    Animated.timing(sheetAnim, {
+      toValue: 520,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setIntroSheetVisible(false);
+        setIntroSheetSection(null);
+        setIntroPersonalNote('');
+      }
+    });
+
+    navigation.navigate('Chat', {
+      conversation_id: conversationId,
+      other_user_name: vf,
+      other_user_initials: otherInitials,
+      trip_summary: {
+        destination: destSummary,
+      },
+    });
+
+    setIntroSubmitting(false);
+  }, [
+    introSheetSection,
+    introSubmitting,
+    introPersonalNote,
+    destination_city,
+    destination_state,
+    date_from,
+    date_to,
+    navigation,
+    sheetAnim,
+  ]);
+
+  const introPreviewPayload: IntroRequestPayload | null = introSheetSection
+    ? {
+        type: 'intro_request',
+        via_friend: introSheetSection.viaFriend.trim() || 'Friend',
+        destination_city,
+        destination_state,
+        date_from,
+        date_to,
+        connections_count: introSheetSection.people.length,
+        status: 'pending',
+      }
+    : null;
 
   useEffect(() => {
     if (!showResults) return;
@@ -714,7 +934,10 @@ export default function Degree2AnimationScreen() {
               </View>
             );
           })}
-          <Pressable style={styles.askPill} onPress={() => {}}>
+          <Pressable
+            style={styles.askPill}
+            onPress={() => openIntroSheet(item)}
+          >
             <Text style={styles.askPillLabel}>
               {`Ask ${item.viaFriend} for access`}
             </Text>
@@ -722,7 +945,7 @@ export default function Degree2AnimationScreen() {
         </Animated.View>
       );
     },
-    [sectionAnims],
+    [sectionAnims, openIntroSheet],
   );
 
   const keyExtractor = useCallback((item: Deg2Section) => item.viaFriend, []);
@@ -767,6 +990,74 @@ export default function Degree2AnimationScreen() {
           />
         </Animated.View>
       ) : null}
+
+      <Modal
+        visible={introSheetVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeIntroSheet}
+      >
+        <KeyboardAvoidingView
+          style={styles.sheetRoot}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable
+            style={styles.sheetBackdrop}
+            onPress={closeIntroSheet}
+            disabled={introSubmitting}
+          />
+          <Animated.View
+            style={[
+              styles.sheetPanel,
+              { transform: [{ translateY: sheetAnim }] },
+            ]}
+          >
+            <SafeAreaView edges={['bottom']} style={styles.sheetSafe}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.sheetScrollContent}
+              >
+                <Text style={styles.sheetTitle}>Ask for an introduction</Text>
+                {introPreviewPayload ? (
+                  <IntroRequestCardView
+                    data={introPreviewPayload}
+                    includePersonalInCard={false}
+                    includeRequesterRow={false}
+                  />
+                ) : null}
+                <TextInput
+                  style={styles.sheetNoteInput}
+                  value={introPersonalNote}
+                  onChangeText={setIntroPersonalNote}
+                  placeholder="Hey! Ask your friend personally..."
+                  placeholderTextColor={MUTED}
+                  multiline
+                  maxLength={2000}
+                  textAlignVertical="top"
+                />
+                <Pressable
+                  style={[
+                    styles.sheetSendBtn,
+                    introSubmitting && styles.sheetSendBtnDisabled,
+                  ]}
+                  onPress={() => void submitIntroRequest()}
+                  disabled={introSubmitting}
+                >
+                  <Text style={styles.sheetSendBtnLabel}>Send request</Text>
+                </Pressable>
+                <Pressable
+                  onPress={closeIntroSheet}
+                  disabled={introSubmitting}
+                  style={styles.sheetCancelBtn}
+                >
+                  <Text style={styles.sheetCancelLabel}>Cancel</Text>
+                </Pressable>
+              </ScrollView>
+            </SafeAreaView>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1047,5 +1338,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: CHARCOAL,
+  },
+  sheetRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(44, 44, 42, 0.35)',
+  },
+  sheetPanel: {
+    backgroundColor: IVORY,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: CARD_BORDER,
+    maxHeight: '88%',
+    paddingTop: 8,
+  },
+  sheetSafe: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+  },
+  sheetScrollContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+    paddingTop: 12,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: CHARCOAL,
+    marginBottom: 16,
+    letterSpacing: -0.2,
+  },
+  sheetNoteInput: {
+    marginTop: 16,
+    minHeight: 96,
+    maxHeight: 160,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: IVORY,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: CHARCOAL,
+    lineHeight: 22,
+  },
+  sheetSendBtn: {
+    marginTop: 18,
+    paddingVertical: 15,
+    borderRadius: 14,
+    backgroundColor: CHARCOAL,
+    alignItems: 'center',
+  },
+  sheetSendBtnDisabled: {
+    opacity: 0.45,
+  },
+  sheetSendBtnLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: IVORY,
+  },
+  sheetCancelBtn: {
+    marginTop: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sheetCancelLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: MUTED,
   },
 });

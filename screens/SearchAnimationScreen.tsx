@@ -6,20 +6,32 @@ import {
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   ListRenderItem,
+  Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  TripRequestCardView,
+  type TripRequestPayload,
+} from '../components/TripRequestCardView';
 import type { Degree1SummaryResult, RootStackParamList } from '../App';
-import { supabaseAnonKey } from '../lib/supabase';
+import { supabase, supabaseAnonKey } from '../lib/supabase';
+
+const MESSAGE_USER_ID = 2;
 
 const FIND_HOUSING_URL =
   'https://mfvyjksetlmzfxrviadq.supabase.co/functions/v1/find-housing';
@@ -74,6 +86,24 @@ const FIND_HOUSING_MIN_MS = 3000;
 
 type SearchAnimRoute = RouteProp<RootStackParamList, 'SearchAnimation'>;
 type SearchAnimNav = StackNavigationProp<RootStackParamList, 'SearchAnimation'>;
+
+function paymentLabelFromHost(w: unknown): string {
+  if (w === true) return 'Open to paying';
+  if (typeof w === 'string') {
+    const s = w.toLowerCase().trim();
+    if (
+      s === 'yes' ||
+      s === 'paid' ||
+      s === 'true' ||
+      s === 'open' ||
+      s === 'charge' ||
+      s === 'charges'
+    ) {
+      return 'Open to paying';
+    }
+  }
+  return 'Looking for free stay';
+}
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -339,6 +369,221 @@ export default function SearchAnimationScreen() {
 
   const cityTitle = destination_city.trim() || 'this city';
 
+  const sheetAnim = useRef(new Animated.Value(520)).current;
+  const [requestSheetVisible, setRequestSheetVisible] = useState(false);
+  const [requestSheetItem, setRequestSheetItem] =
+    useState<Degree1SummaryResult | null>(null);
+  const [personalNote, setPersonalNote] = useState('');
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!requestSheetVisible) return;
+    sheetAnim.setValue(520);
+    Animated.spring(sheetAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 68,
+      friction: 12,
+    }).start();
+  }, [requestSheetVisible, sheetAnim]);
+
+  const closeRequestSheet = useCallback(() => {
+    if (requestSubmitting) return;
+    Animated.timing(sheetAnim, {
+      toValue: 520,
+      duration: 260,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      setRequestSheetVisible(false);
+      setRequestSheetItem(null);
+      setPersonalNote('');
+    });
+  }, [requestSubmitting, sheetAnim]);
+
+  const openStayRequestSheet = useCallback((item: Degree1SummaryResult) => {
+    const rawPid = item.profile_id ?? item.id;
+    const profileId =
+      typeof rawPid === 'string' && rawPid.trim()
+        ? rawPid.trim()
+        : typeof rawPid === 'number'
+          ? String(rawPid)
+          : null;
+
+    if (!profileId) {
+      Alert.alert(
+        'Cannot message',
+        'Profile is not linked for this connection yet.',
+      );
+      return;
+    }
+
+    setRequestSheetItem(item);
+    setPersonalNote('');
+    setRequestSheetVisible(true);
+  }, []);
+
+  const submitStayRequest = useCallback(async () => {
+    const item = requestSheetItem;
+    if (!item || requestSubmitting) return;
+
+    const rawPid = item.profile_id ?? item.id;
+    const profileId =
+      typeof rawPid === 'string' && rawPid.trim()
+        ? rawPid.trim()
+        : typeof rawPid === 'number'
+          ? String(rawPid)
+          : null;
+
+    if (!profileId) {
+      Alert.alert(
+        'Cannot message',
+        'Profile is not linked for this connection yet.',
+      );
+      return;
+    }
+
+    const name = (item.name ?? 'there').trim() || 'there';
+    const otherInitials =
+      name
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((w) => w[0] ?? '')
+        .join('')
+        .toUpperCase() || initialsFromName(name);
+
+    const paymentLabel = paymentLabelFromHost(item.willing_to_charge);
+    const tripPayload = {
+      type: 'trip_request' as const,
+      destination_city,
+      destination_state,
+      date_from,
+      date_to,
+      guest_name: 'Elihu Yale',
+      guest_university: 'Yale University',
+      personal_note: personalNote.trim(),
+      status: 'pending' as const,
+      payment_label: paymentLabel,
+    };
+
+    setRequestSubmitting(true);
+
+    const q12 = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('user_id_1', MESSAGE_USER_ID)
+      .eq('user_id_2', profileId)
+      .maybeSingle();
+
+    let conversationId: string | null = q12.data?.id
+      ? String(q12.data.id)
+      : null;
+
+    if (!conversationId) {
+      const q21 = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('user_id_1', profileId)
+        .eq('user_id_2', MESSAGE_USER_ID)
+        .maybeSingle();
+
+      conversationId = q21.data?.id ? String(q21.data.id) : null;
+    }
+
+    if (!conversationId) {
+      const ins = await supabase
+        .from('conversations')
+        .insert({
+          user_id_1: MESSAGE_USER_ID,
+          user_id_2: profileId,
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (ins.error || !ins.data?.id) {
+        setRequestSubmitting(false);
+        Alert.alert(
+          'Could not start chat',
+          ins.error?.message ?? 'Failed to create conversation',
+        );
+        return;
+      }
+      conversationId = String(ins.data.id);
+    }
+
+    const msg = await supabase.from('messages').insert({
+      conversation_id: conversationId,
+      sender_id: MESSAGE_USER_ID,
+      content: JSON.stringify(tripPayload),
+      is_trip_request: true,
+      created_at: new Date().toISOString(),
+    });
+
+    if (msg.error) {
+      setRequestSubmitting(false);
+      Alert.alert('Could not send request', msg.error.message);
+      return;
+    }
+
+    const destLine = [destination_city, destination_state]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(', ');
+    const datesLine =
+      date_from.trim() && date_to.trim()
+        ? `${date_from.trim()} – ${date_to.trim()}`
+        : date_from.trim() || date_to.trim() || '';
+
+    Animated.timing(sheetAnim, {
+      toValue: 520,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setRequestSheetVisible(false);
+        setRequestSheetItem(null);
+        setPersonalNote('');
+      }
+    });
+
+    navigation.navigate('Chat', {
+      conversation_id: conversationId,
+      other_user_name: name,
+      other_user_initials: otherInitials,
+      trip_summary: {
+        destination: destLine || undefined,
+        dates: datesLine || undefined,
+      },
+    });
+
+    setRequestSubmitting(false);
+  }, [
+    requestSheetItem,
+    requestSubmitting,
+    personalNote,
+    destination_city,
+    destination_state,
+    date_from,
+    date_to,
+    navigation,
+    sheetAnim,
+  ]);
+
+  const sheetPreviewPayload: TripRequestPayload | null = requestSheetItem
+    ? {
+        type: 'trip_request',
+        destination_city,
+        destination_state,
+        date_from,
+        date_to,
+        guest_name: 'Elihu Yale',
+        guest_university: 'Yale University',
+        status: 'pending',
+        payment_label: paymentLabelFromHost(requestSheetItem.willing_to_charge),
+      }
+    : null;
+
   useEffect(() => {
     if (!showResultsLayer) return;
 
@@ -435,9 +680,10 @@ export default function SearchAnimationScreen() {
         item={item}
         translateX={cardAnims[index]!.translateX}
         opacityAnim={cardAnims[index]!.opacity}
+        onPressMessage={openStayRequestSheet}
       />
     ),
-    [cardAnims],
+    [cardAnims, openStayRequestSheet],
   );
 
   const listHeader = useMemo(
@@ -625,6 +871,74 @@ export default function SearchAnimationScreen() {
           />
         </Animated.View>
       ) : null}
+
+      <Modal
+        visible={requestSheetVisible}
+        transparent
+        animationType="none"
+        onRequestClose={closeRequestSheet}
+      >
+        <KeyboardAvoidingView
+          style={styles.sheetRoot}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable
+            style={styles.sheetBackdrop}
+            onPress={closeRequestSheet}
+            disabled={requestSubmitting}
+          />
+          <Animated.View
+            style={[
+              styles.sheetPanel,
+              { transform: [{ translateY: sheetAnim }] },
+            ]}
+          >
+            <SafeAreaView edges={['bottom']} style={styles.sheetSafe}>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.sheetScrollContent}
+              >
+                <Text style={styles.sheetTitle}>Send a stay request</Text>
+                {sheetPreviewPayload ? (
+                  <TripRequestCardView
+                    data={sheetPreviewPayload}
+                    showPaymentRow
+                    includePersonalInCard={false}
+                  />
+                ) : null}
+                <TextInput
+                  style={styles.sheetNoteInput}
+                  value={personalNote}
+                  onChangeText={setPersonalNote}
+                  placeholder="Add a personal note..."
+                  placeholderTextColor={MUTED}
+                  multiline
+                  maxLength={2000}
+                  textAlignVertical="top"
+                />
+                <Pressable
+                  style={[
+                    styles.sheetSendBtn,
+                    requestSubmitting && styles.sheetSendBtnDisabled,
+                  ]}
+                  onPress={() => void submitStayRequest()}
+                  disabled={requestSubmitting}
+                >
+                  <Text style={styles.sheetSendBtnLabel}>Send request</Text>
+                </Pressable>
+                <Pressable
+                  onPress={closeRequestSheet}
+                  disabled={requestSubmitting}
+                  style={styles.sheetCancelBtn}
+                >
+                  <Text style={styles.sheetCancelLabel}>Cancel</Text>
+                </Pressable>
+              </ScrollView>
+            </SafeAreaView>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -633,10 +947,12 @@ function SlidingResultCard({
   item,
   translateX,
   opacityAnim,
+  onPressMessage,
 }: {
   item: Degree1SummaryResult;
   translateX: Animated.Value;
   opacityAnim: Animated.Value;
+  onPressMessage: (item: Degree1SummaryResult) => void;
 }) {
   const name = item.name ?? 'Unknown';
   const rating =
@@ -680,7 +996,10 @@ function SlidingResultCard({
               <Text style={styles.cardSummary}>{item.summary}</Text>
             ) : null}
             <View style={styles.cardFooter}>
-              <Pressable style={styles.messagePill} onPress={() => {}}>
+              <Pressable
+                style={styles.messagePill}
+                onPress={() => onPressMessage(item)}
+              >
                 <Text style={styles.messagePillLabel}>Message</Text>
               </Pressable>
             </View>
@@ -987,5 +1306,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: CHARCOAL,
+  },
+  sheetRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(44, 44, 42, 0.35)',
+  },
+  sheetPanel: {
+    backgroundColor: IVORY,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: CARD_BORDER,
+    maxHeight: '88%',
+    paddingTop: 8,
+  },
+  sheetSafe: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+  },
+  sheetScrollContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+    paddingTop: 12,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: CHARCOAL,
+    marginBottom: 16,
+    letterSpacing: -0.2,
+  },
+  sheetNoteInput: {
+    marginTop: 16,
+    minHeight: 96,
+    maxHeight: 160,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: IVORY,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: CHARCOAL,
+    lineHeight: 22,
+  },
+  sheetSendBtn: {
+    marginTop: 18,
+    paddingVertical: 15,
+    borderRadius: 14,
+    backgroundColor: CHARCOAL,
+    alignItems: 'center',
+  },
+  sheetSendBtnDisabled: {
+    opacity: 0.45,
+  },
+  sheetSendBtnLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: IVORY,
+  },
+  sheetCancelBtn: {
+    marginTop: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  sheetCancelLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: MUTED,
   },
 });
