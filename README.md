@@ -57,9 +57,10 @@ To run Crashly locally:
 -	1.	Clone the repository
 -	2.	Install dependencies
  	  npm install
+-	3.	Start the Expo development server
  	 npx expo start
 
-  4.	Open in:
+-	4.	Open in:
 	•	iOS Simulator
 	•	Android Emulator
 	•	Expo Go (mobile device)
