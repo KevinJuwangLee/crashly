@@ -9,7 +9,7 @@
 
 As students traveling for hackathons like YHack, we quickly realized that finding a place to stay was one of the hardest parts of the experience. Hotels were expensive, often required guests to be 21+, and coordinating with friends or mutual connections was unreliable.
 
-We kept asking: why isn’t there a smarter way to use the college networks we already have?
+We kept asking: *why isn’t there a smarter way to use the college networks we already have?*
 
 That idea led us to build Crashly—an AI-powered lodging agent that connects your network with real housing options.
 
@@ -20,7 +20,7 @@ That idea led us to build Crashly—an AI-powered lodging agent that connects yo
 - 🌐 Fallback to real listings (Airbnb, housing groups, rentals)
 - 💬 AI-generated outreach messages to contact hosts بسهولة
 - 📍 Location-based search with mapping integration
-- 🔒 .edu verification system for trusted student access
+- 🔒 .edu sign-up system for trusted student access
 
 ## How It Works
 1.	Enter your destination, dates, and travel purpose
@@ -63,5 +63,4 @@ npx expo start
 	•	Android Emulator
 	•	Expo Go (mobile device)
 
-## Demo
 ### [Click here to watch our Demo Video]([https://youtu.be/0YCHKEUEQG8?si=Tr9yKawvncQL8XgJ ](https://youtube.com/video/mOG1gWjKqoo )
