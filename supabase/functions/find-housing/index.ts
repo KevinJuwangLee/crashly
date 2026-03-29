@@ -19,6 +19,7 @@ type FindHousingBody = {
   degree?: number | string;
   destination_city?: string;
   destination_state?: string;
+  university?: string;
   date_from?: string;
   date_to?: string;
   preferences?: string;
@@ -54,6 +55,59 @@ function errorResponse(message: string, status: number): Response {
 
 function normalizeLoc(s: string | undefined): string {
   return (s ?? '').trim().toLowerCase();
+}
+
+/** e.g. "2026-04-04" -> "April 4 2026" */
+function formatTripDateReadable(iso: string): string {
+  const s = (iso ?? '').trim();
+  if (!s) return '';
+  const d = new Date(s.includes('T') ? s : `${s}T12:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return s;
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()} ${d.getUTCFullYear()}`;
+}
+
+type TavilySearchResult = {
+  url?: string;
+  title?: string;
+  content?: string;
+  score?: number;
+  [key: string]: unknown;
+};
+
+async function tavilySearch(
+  apiKey: string,
+  query: string,
+): Promise<TavilySearchResult[]> {
+  const res = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query,
+      search_depth: 'advanced',
+      max_results: 5,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Tavily error ${res.status}: ${errText}`);
+  }
+  const data = (await res.json()) as { results?: TavilySearchResult[] };
+  return Array.isArray(data.results) ? data.results : [];
 }
 
 /** Parse Claude's text block into a JSON array (handles optional markdown fence). */
@@ -118,6 +172,7 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+  const tavilyKey = Deno.env.get('TAVILY_API_KEY');
 
   if (!supabaseUrl || !serviceKey) {
     console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
@@ -147,8 +202,15 @@ Deno.serve(async (req: Request) => {
     body.degree === undefined || body.degree === null
       ? 1
       : Number(body.degree);
-  if (!Number.isInteger(degreeNum) || (degreeNum !== 1 && degreeNum !== 2)) {
-    return errorResponse('degree must be 1 or 2', 400);
+  if (
+    !Number.isInteger(degreeNum) ||
+    (degreeNum !== 1 && degreeNum !== 2 && degreeNum !== 3)
+  ) {
+    return errorResponse('degree must be 1, 2, or 3', 400);
+  }
+
+  if (degreeNum === 3 && !tavilyKey?.trim()) {
+    return errorResponse('Missing TAVILY_API_KEY', 500);
   }
 
   const destinationCity = body.destination_city?.trim();
@@ -172,6 +234,88 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
+
+    if (degreeNum === 3) {
+      const dateFromRaw = body.date_from?.trim() ?? '';
+      const dateToRaw = body.date_to?.trim() ?? '';
+      const dateFrom = formatTripDateReadable(dateFromRaw);
+      const dateTo = formatTripDateReadable(dateToRaw);
+      const university = body.university?.trim() ?? '';
+
+      const queries = [
+        `short term student housing sublet ${destinationCity} ${destinationState} ${dateFrom} to ${dateTo}`,
+        `Airbnb affordable rooms ${destinationCity} college student available ${dateFrom}`,
+        `Facebook groups student housing sublet ${destinationCity} ${dateFrom} to ${dateTo}`,
+        `${destinationCity} Craigslist rooms short term rent ${dateFrom} ${dateTo}`,
+        `housing near ${university || 'the university'} short term visitor ${dateFrom} ${dateTo}`,
+        `${destinationCity} spare room host student available ${dateFrom}`,
+      ];
+
+      const tavilyKeyTrim = tavilyKey!.trim();
+      const tavilyBatches = await Promise.all(
+        queries.map((q) => tavilySearch(tavilyKeyTrim, q)),
+      );
+
+      const combined: TavilySearchResult[] = [];
+      for (const batch of tavilyBatches) {
+        combined.push(...batch);
+      }
+
+      const seenUrls = new Set<string>();
+      const deduped: TavilySearchResult[] = [];
+      for (const row of combined) {
+        const u = typeof row.url === 'string' ? row.url.trim() : '';
+        if (!u) continue;
+        const key = u.toLowerCase();
+        if (seenUrls.has(key)) continue;
+        seenUrls.add(key);
+        deduped.push(row);
+        if (deduped.length >= 12) break;
+      }
+
+      const systemDeg3 =
+        `You are a housing agent for college students. From these web search results about housing in ${destinationCity} for dates ${dateFrom} to ${dateTo}, extract and rank the most useful options for a college student. Prioritize actual bookable listings over general articles. Return ONLY valid JSON array with fields: source (Airbnb/Facebook/Craigslist/Sublet/Hotel/Other), title, description (1 warm friendly sentence), link, estimated_price_range (e.g. $30-80/night or Free or Unknown), trust_score (1-10)`;
+
+      const userMessageDeg3 = JSON.stringify({
+        destination_city: destinationCity,
+        destination_state: destinationState,
+        university: university || null,
+        date_from: dateFromRaw,
+        date_to: dateToRaw,
+        date_from_readable: dateFrom,
+        date_to_readable: dateTo,
+        tavily_results: deduped,
+      });
+
+      const claudeDeg3 = await callClaude(
+        anthropicKey,
+        systemDeg3,
+        userMessageDeg3,
+      );
+
+      if (!claudeDeg3.ok) {
+        console.error(
+          'Anthropic API error (degree 3):',
+          claudeDeg3.status,
+          claudeDeg3.body,
+        );
+        return errorResponse('Ranking service temporarily unavailable', 502);
+      }
+
+      let webResults: unknown[];
+      try {
+        webResults = parseClaudeJsonArray(claudeDeg3.text);
+      } catch (e) {
+        console.error(
+          'Failed to parse Claude JSON (degree 3):',
+          e,
+          claudeDeg3.text.slice(0, 500),
+        );
+        return errorResponse('Could not parse ranking results', 502);
+      }
+
+      return jsonResponse({ ok: true, webResults });
+    }
 
     if (degreeNum === 1) {
       const { data: connectionRows, error: connError } = await supabase

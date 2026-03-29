@@ -8,8 +8,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  FlatList,
+  Image,
+  ListRenderItem,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -25,10 +27,16 @@ const FIND_HOUSING_URL =
 const IVORY = '#FAF9F6';
 const CHARCOAL = '#2C2C2A';
 const MUTED = '#6B6965';
-const LINE = 'rgba(44,44,42,0.12)';
 const GOLD = '#C9A227';
 const CARD_BORDER = '#E8E5E0';
 const D2_SAT_FILL = '#8A8A88';
+const COUNT_MUTED = '#B0ADA8';
+
+const COUNT_TOTAL_MS = 1200;
+const COUNT_PAUSE_AFTER_MS = 2000;
+const SECTION_STAGGER_MS = 200;
+const CARD_SLIDE_MS = 300;
+const SLOT_DIGIT_HEIGHT = 86;
 
 const CYCLE_MESSAGES = [
   'Reaching out further...',
@@ -38,29 +46,25 @@ const CYCLE_MESSAGES = [
 
 const DIRECT_INITIALS = ['JW', 'ZM', 'SO'] as const;
 
-type ArmConfig = {
-  rMin: number;
-  rMax: number;
-  pulseMs: number;
-  angleMs: number;
-  baseDeg: number;
-};
-
-const DIRECT_ARMS: ArmConfig[] = [
-  { rMin: 88, rMax: 118, pulseMs: 3400, angleMs: 21000, baseDeg: 12 },
-  { rMin: 92, rMax: 124, pulseMs: 3000, angleMs: 25500, baseDeg: 127 },
-  { rMin: 78, rMax: 112, pulseMs: 3800, angleMs: 18800, baseDeg: 245 },
-];
-
+const ORBIT_BOX = 320;
+const ORBIT_CX = ORBIT_BOX / 2;
+const ORBIT_CY = ORBIT_BOX / 2;
 const HUB_SIZE = 80;
 const HUB_R = HUB_SIZE / 2;
-const SAT_SIZE = 50;
-const SAT_R = SAT_SIZE / 2;
-const D2_SAT_SIZE = 35;
-const D2_SAT_R = D2_SAT_SIZE / 2;
-const ORBIT_BOX = 360;
-const CENTER = ORBIT_BOX / 2;
-const MINI_ORBIT_R = 34;
+const FRIEND_SIZE = 55;
+const FRIEND_R = FRIEND_SIZE / 2;
+const D2_SIZE = 32;
+const D2_R = D2_SIZE / 2;
+const R_FRIEND_ORBIT = 130;
+const R_D2_ORBIT = 65;
+const ORBIT_TICK_MS = 16;
+
+const FRIEND_OMEGA = [0.008, 0.006, 0.01] as const;
+const D2_OMEGA: readonly [number, number][] = [
+  [0.015, 0.02],
+  [0.018, 0.014],
+  [0.016, 0.022],
+];
 
 const FIND_DEG2_MIN_MS = 3000;
 
@@ -75,188 +79,172 @@ type Deg2Result = {
   via_friend?: string | null;
 };
 
-function MiniOrbitalArm({
-  baseDeg,
-  angleMs,
-  orbitR,
+function OrbitLine({
+  x1,
+  y1,
+  x2,
+  y2,
 }: {
-  baseDeg: number;
-  angleMs: number;
-  orbitR: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 }) {
-  const angleSpin = useRef(new Animated.Value(0)).current;
-
-  const rotate = useMemo(
-    () =>
-      angleSpin.interpolate({
-        inputRange: [0, 1],
-        outputRange: [`${baseDeg}deg`, `${baseDeg + 360}deg`],
-      }),
-    [angleSpin, baseDeg],
-  );
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(angleSpin, {
-        toValue: 1,
-        duration: angleMs,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [angleSpin, angleMs]);
-
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.5) {
+    return null;
+  }
+  const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
   return (
-    <Animated.View
+    <View
+      pointerEvents="none"
       style={[
-        styles.miniPivot,
+        styles.orbitLineSeg,
         {
-          transform: [{ rotate }],
+          left: midX,
+          top: midY,
+          width: len,
+          marginLeft: -len / 2,
+          marginTop: -0.5,
+          transform: [{ rotate: `${angleDeg}deg` }],
         },
       ]}
-    >
-      <View
-        style={[
-          styles.miniLine,
-          {
-            width: orbitR,
-          },
-        ]}
-      />
-      <View
-        style={[
-          styles.d2SatelliteOuter,
-          {
-            marginLeft: -D2_SAT_R,
-            marginTop: -D2_SAT_R,
-            transform: [{ translateX: orbitR }],
-          },
-        ]}
-      >
-        <View style={styles.d2SatelliteCircle} />
-      </View>
-    </Animated.View>
+    />
   );
 }
 
-function FriendArmCluster({
-  config,
-  initials,
-  miniAngleA,
-  miniAngleB,
-  miniSpeedA,
-  miniSpeedB,
-}: {
-  config: ArmConfig;
-  initials: string;
-  miniAngleA: number;
-  miniAngleB: number;
-  miniSpeedA: number;
-  miniSpeedB: number;
-}) {
-  const radiusPulse = useRef(new Animated.Value(0)).current;
-  const angleSpin = useRef(new Animated.Value(0)).current;
-
-  const rInterp = useMemo(
-    () =>
-      radiusPulse.interpolate({
-        inputRange: [0, 1],
-        outputRange: [config.rMin, config.rMax],
-      }),
-    [radiusPulse, config.rMin, config.rMax],
-  );
-
-  const rotate = useMemo(
-    () =>
-      angleSpin.interpolate({
-        inputRange: [0, 1],
-        outputRange: [`${config.baseDeg}deg`, `${config.baseDeg + 360}deg`],
-      }),
-    [angleSpin, config.baseDeg],
-  );
+function TrigOrbitField({ active }: { active: boolean }) {
+  const [tick, setTick] = useState(0);
+  const friendAngles = useRef([
+    0,
+    (2 * Math.PI) / 3,
+    (4 * Math.PI) / 3,
+  ]);
+  const d2Angles = useRef<number[][]>([
+    [0, Math.PI],
+    [Math.PI / 2, (3 * Math.PI) / 2],
+    [Math.PI / 4, (5 * Math.PI) / 4],
+  ]);
 
   useEffect(() => {
-    const half = Math.max(200, config.pulseMs / 2);
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(radiusPulse, {
-          toValue: 1,
-          duration: half,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: false,
-        }),
-        Animated.timing(radiusPulse, {
-          toValue: 0,
-          duration: half,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-    const angleLoop = Animated.loop(
-      Animated.timing(angleSpin, {
-        toValue: 1,
-        duration: config.angleMs,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      }),
-    );
-    pulseLoop.start();
-    angleLoop.start();
-    return () => {
-      pulseLoop.stop();
-      angleLoop.stop();
-    };
-  }, [config, radiusPulse, angleSpin]);
+    if (!active) {
+      return;
+    }
+    const id = setInterval(() => {
+      for (let i = 0; i < 3; i++) {
+        let a = friendAngles.current[i]! + FRIEND_OMEGA[i]!;
+        if (a > 2 * Math.PI) {
+          a -= 2 * Math.PI;
+        }
+        friendAngles.current[i] = a;
+      }
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 2; j++) {
+          let b = d2Angles.current[i]![j]! + D2_OMEGA[i]![j]!;
+          if (b > 2 * Math.PI) {
+            b -= 2 * Math.PI;
+          }
+          d2Angles.current[i]![j] = b;
+        }
+      }
+      setTick((t) => (t + 1) % 1_000_000);
+    }, ORBIT_TICK_MS);
+    return () => clearInterval(id);
+  }, [active]);
+
+  const layout = useMemo(() => {
+    const cx = ORBIT_CX;
+    const cy = ORBIT_CY;
+    const fa = friendAngles.current;
+    const da = d2Angles.current;
+    return [0, 1, 2].map((i) => {
+      const ang = fa[i]!;
+      const fx = cx + R_FRIEND_ORBIT * Math.cos(ang);
+      const fy = cy + R_FRIEND_ORBIT * Math.sin(ang);
+      const d2s = [0, 1].map((j) => {
+        const sa = da[i]![j]!;
+        return {
+          x: fx + R_D2_ORBIT * Math.cos(sa),
+          y: fy + R_D2_ORBIT * Math.sin(sa),
+        };
+      });
+      return { fx, fy, d2s };
+    });
+  }, [tick]);
 
   return (
-    <Animated.View
-      style={[
-        styles.armPivot,
-        {
-          left: CENTER,
-          top: CENTER,
-          transform: [{ rotate }],
-        },
-      ]}
-    >
-      <Animated.View
+    <View style={styles.trigOrbitHost}>
+      {layout.map((L, i) => (
+        <OrbitLine
+          key={`hub-f-${i}`}
+          x1={ORBIT_CX}
+          y1={ORBIT_CY}
+          x2={L.fx}
+          y2={L.fy}
+        />
+      ))}
+      {layout.map((L, i) =>
+        L.d2s.map((p, j) => (
+          <OrbitLine
+            key={`f${i}-d2-${j}`}
+            x1={L.fx}
+            y1={L.fy}
+            x2={p.x}
+            y2={p.y}
+          />
+        )),
+      )}
+      {layout.map((L, i) =>
+        L.d2s.map((p, j) => (
+          <View
+            key={`d2-${i}-${j}`}
+            style={[
+              styles.trigD2Circle,
+              {
+                left: p.x - D2_R,
+                top: p.y - D2_R,
+              },
+            ]}
+          />
+        )),
+      )}
+      {layout.map((L, i) => (
+        <View
+          key={`friend-${i}`}
+          style={[
+            styles.trigFriendCircle,
+            {
+              left: L.fx - FRIEND_R,
+              top: L.fy - FRIEND_R,
+            },
+          ]}
+        >
+          <Text style={styles.trigFriendInitials}>
+            {DIRECT_INITIALS[i] ?? '?'}
+          </Text>
+        </View>
+      ))}
+      <View
         style={[
-          styles.connectorLine,
+          styles.trigHubCircle,
           {
-            width: rInterp,
+            left: ORBIT_CX - HUB_R,
+            top: ORBIT_CY - HUB_R,
           },
         ]}
-      />
-      <Animated.View
-        style={[
-          styles.satelliteOuter,
-          {
-            marginLeft: -SAT_R,
-            marginTop: -SAT_R,
-            transform: [{ translateX: rInterp }],
-          },
-        ]}
+        pointerEvents="none"
       >
-        <View style={styles.satelliteCircle}>
-          <Text style={styles.satelliteInitials}>{initials}</Text>
-        </View>
-        <View style={styles.miniOrbitHost} pointerEvents="none">
-          <MiniOrbitalArm
-            baseDeg={miniAngleA}
-            angleMs={miniSpeedA}
-            orbitR={MINI_ORBIT_R}
-          />
-          <MiniOrbitalArm
-            baseDeg={miniAngleB}
-            angleMs={miniSpeedB}
-            orbitR={MINI_ORBIT_R - 5}
-          />
-        </View>
-      </Animated.View>
-    </Animated.View>
+        <Image
+          source={require('../assets/handsome-dan.jpg')}
+          style={styles.trigHubAvatar}
+          resizeMode="cover"
+        />
+      </View>
+    </View>
   );
 }
 
@@ -270,6 +258,11 @@ function groupByViaFriend(rows: Deg2Result[]): Map<string, Deg2Result[]> {
   return m;
 }
 
+type Deg2Section = {
+  viaFriend: string;
+  people: Deg2Result[];
+};
+
 export default function Degree2AnimationScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<Route>();
@@ -281,6 +274,7 @@ export default function Degree2AnimationScreen() {
     date_from,
     date_to,
     preferences,
+    degree1Results,
   } = params;
 
   const handleBack = useCallback(() => {
@@ -294,6 +288,9 @@ export default function Degree2AnimationScreen() {
 
   const animLayerOpacity = useRef(new Animated.Value(1)).current;
   const resultsLayerOpacity = useRef(new Animated.Value(0)).current;
+  const countScroll = useRef(new Animated.Value(0)).current;
+  const countScale = useRef(new Animated.Value(1)).current;
+  const continueOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -420,12 +417,315 @@ export default function Degree2AnimationScreen() {
     resultsLayerOpacity,
   ]);
 
-  const cityLabel = destination_city.trim() || 'this city';
   const grouped = useMemo(() => groupByViaFriend(deg2Results), [deg2Results]);
   const sectionKeys = useMemo(
     () => [...grouped.keys()].sort((a, b) => a.localeCompare(b)),
     [grouped],
   );
+
+  const sections = useMemo((): Deg2Section[] => {
+    return sectionKeys.map((viaFriend) => ({
+      viaFriend,
+      people: grouped.get(viaFriend) ?? [],
+    }));
+  }, [sectionKeys, grouped]);
+
+  const totalCardCount = useMemo(
+    () => sections.reduce((acc, s) => acc + s.people.length, 0),
+    [sections],
+  );
+
+  const sectionAnims = useMemo(
+    () =>
+      Array.from({ length: sections.length }, () => ({
+        translateX: new Animated.Value(300),
+        opacity: new Animated.Value(0),
+      })),
+    [sections.length],
+  );
+
+  useEffect(() => {
+    if (!showResults) return;
+
+    if (fetchError || totalCardCount === 0) {
+      countScroll.setValue(0);
+      countScale.setValue(1);
+      Animated.timing(continueOpacity, {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    const n = totalCardCount;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+
+    countScroll.setValue(0);
+    countScale.setValue(1);
+    continueOpacity.setValue(0);
+    sectionAnims.forEach((a) => {
+      a.translateX.setValue(300);
+      a.opacity.setValue(0);
+    });
+
+    const numSections = sectionAnims.length;
+    const slotDist = n * SLOT_DIGIT_HEIGHT;
+    Animated.timing(countScroll, {
+      toValue: -slotDist,
+      duration: COUNT_TOTAL_MS,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      countScale.setValue(1.12);
+      Animated.spring(countScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 120,
+        useNativeDriver: true,
+      }).start();
+    });
+
+    const cardsPhaseStart = COUNT_TOTAL_MS + COUNT_PAUSE_AFTER_MS;
+    const tCards = setTimeout(() => {
+      sectionAnims.forEach((anim, i) => {
+        const t = setTimeout(() => {
+          Animated.parallel([
+            Animated.timing(anim.translateX, {
+              toValue: 0,
+              duration: CARD_SLIDE_MS,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim.opacity, {
+              toValue: 1,
+              duration: CARD_SLIDE_MS,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }, i * SECTION_STAGGER_MS);
+        timeouts.push(t);
+      });
+      const buttonDelay =
+        (numSections - 1) * SECTION_STAGGER_MS + CARD_SLIDE_MS;
+      const tBtn = setTimeout(() => {
+        Animated.timing(continueOpacity, {
+          toValue: 1,
+          duration: 380,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      }, buttonDelay);
+      timeouts.push(tBtn);
+    }, cardsPhaseStart);
+    timeouts.push(tCards);
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+    };
+  }, [
+    showResults,
+    fetchError,
+    totalCardCount,
+    sectionAnims,
+    countScroll,
+    countScale,
+    continueOpacity,
+  ]);
+
+  const listHeader = useMemo(
+    () => (
+      <>
+        <View style={styles.backBtnRow}>
+          <Pressable
+            onPress={handleBack}
+            hitSlop={12}
+            style={styles.backBtn}
+          >
+            <Text style={styles.backGlyph}>Back</Text>
+          </Pressable>
+        </View>
+        {fetchError ? (
+          <View style={styles.subHeaderBlock}>
+            <Text style={[styles.countHeaderLine, styles.countHeaderLineSpacing]}>
+              Something went wrong
+            </Text>
+            <Text style={styles.errorBanner}>{fetchError}</Text>
+          </View>
+        ) : totalCardCount === 0 ? (
+          <View style={styles.subHeaderBlock}>
+            <Text style={[styles.countHeaderLine, { paddingHorizontal: 12 }]}>
+              No connections found through your friends
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.countHeaderBlock}>
+            <Text style={[styles.countHeaderLine, styles.countHeaderLineAboveSlot]}>
+              We found
+            </Text>
+            <Animated.View style={{ transform: [{ scale: countScale }] }}>
+              <View style={styles.countSlotClip}>
+                <Animated.View
+                  style={[
+                    styles.countSlotRail,
+                    { transform: [{ translateY: countScroll }] },
+                  ]}
+                >
+                  {Array.from({ length: totalCardCount + 1 }, (_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.countDigitCell,
+                        { height: SLOT_DIGIT_HEIGHT },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.countDigit,
+                          i === totalCardCount
+                            ? styles.countDigitFinal
+                            : styles.countDigitMuted,
+                        ]}
+                      >
+                        {i}
+                      </Text>
+                    </View>
+                  ))}
+                </Animated.View>
+              </View>
+            </Animated.View>
+            <Text
+              style={[styles.countHeaderLine, styles.countHeaderLineBelowSlot]}
+            >
+              friends of friends nearby
+            </Text>
+          </View>
+        )}
+      </>
+    ),
+    [
+      handleBack,
+      fetchError,
+      totalCardCount,
+      countScroll,
+      countScale,
+    ],
+  );
+
+  const listFooter = useMemo(
+    () => (
+      <Animated.View
+        style={[styles.footerActionsWrap, { opacity: continueOpacity }]}
+      >
+        <Pressable
+          style={styles.footerBtnPrimary}
+          onPress={() =>
+            navigation.navigate('WebResults', {
+              destination_city,
+              destination_state,
+              university,
+              date_from,
+              date_to,
+              preferences,
+              degree1Results,
+              degree2Results: deg2Results,
+            })
+          }
+        >
+          <Text style={styles.footerBtnPrimaryLabel}>
+            Keep searching online
+          </Text>
+        </Pressable>
+        <Pressable
+          style={styles.footerBtnSecondary}
+          onPress={() => navigation.navigate('Home')}
+        >
+          <Text style={styles.footerBtnSecondaryLabel}>
+            {"I'm good here"}
+          </Text>
+        </Pressable>
+      </Animated.View>
+    ),
+    [
+      navigation,
+      continueOpacity,
+      destination_city,
+      destination_state,
+      university,
+      date_from,
+      date_to,
+      preferences,
+      degree1Results,
+      deg2Results,
+    ],
+  );
+
+  const renderItem: ListRenderItem<Deg2Section> = useCallback(
+    ({ item, index }) => {
+      const anim = sectionAnims[index];
+      if (!anim) {
+        return null;
+      }
+
+      return (
+        <Animated.View
+          style={{
+            opacity: anim.opacity,
+            transform: [{ translateX: anim.translateX }],
+          }}
+        >
+          <Text
+            style={[
+              styles.sectionHeader,
+              index === 0 ? styles.sectionHeaderFirst : null,
+            ]}
+          >
+            {`${item.viaFriend} knows ${item.people.length} people nearby`}
+          </Text>
+          {item.people.map((row, idx) => {
+            const rating =
+              typeof row.rating === 'number' && !Number.isNaN(row.rating)
+                ? row.rating
+                : null;
+            const stars =
+              rating != null
+                ? Math.max(0, Math.min(5, Math.round(rating)))
+                : null;
+            return (
+              <View key={`${item.viaFriend}-card-${idx}`} style={styles.card}>
+                <View style={styles.nameRedactBar} />
+                {row.university ? (
+                  <Text style={styles.cardUniversity}>{row.university}</Text>
+                ) : null}
+                {stars != null ? (
+                  <Text style={styles.cardStars}>
+                    <Text style={styles.starGold}>{'★'.repeat(stars)}</Text>
+                    <Text style={styles.starMuted}>
+                      {'☆'.repeat(Math.max(0, 5 - stars))}
+                    </Text>
+                  </Text>
+                ) : null}
+                {row.teaser_summary ? (
+                  <Text style={styles.cardTeaser}>{row.teaser_summary}</Text>
+                ) : null}
+              </View>
+            );
+          })}
+          <Pressable style={styles.askPill} onPress={() => {}}>
+            <Text style={styles.askPillLabel}>
+              {`Ask ${item.viaFriend} for access`}
+            </Text>
+          </Pressable>
+        </Animated.View>
+      );
+    },
+    [sectionAnims],
+  );
+
+  const keyExtractor = useCallback((item: Deg2Section) => item.viaFriend, []);
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -441,24 +741,7 @@ export default function Degree2AnimationScreen() {
           >
             <Text style={styles.backGlyph}>Back</Text>
           </Pressable>
-          <View style={[styles.orbitHost, { width: ORBIT_BOX, height: ORBIT_BOX }]}>
-            {DIRECT_ARMS.map((cfg, i) => (
-              <FriendArmCluster
-                key={i}
-                config={cfg}
-                initials={DIRECT_INITIALS[i] ?? '?'}
-                miniAngleA={22 + i * 53}
-                miniAngleB={198 + i * 41}
-                miniSpeedA={5100 + i * 700}
-                miniSpeedB={6900 + i * 500}
-              />
-            ))}
-            <View style={styles.hubWrap} pointerEvents="none">
-              <View style={styles.hubCircle}>
-                <Text style={styles.hubInitials}>EY</Text>
-              </View>
-            </View>
-          </View>
+          <TrigOrbitField active={!showResults} />
           <Text style={styles.cycleText}>{CYCLE_MESSAGES[messageIndex]}</Text>
         </View>
       </Animated.View>
@@ -471,110 +754,17 @@ export default function Degree2AnimationScreen() {
             { opacity: resultsLayerOpacity },
           ]}
         >
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
+          <FlatList
+            style={styles.resultsList}
+            data={sections}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            ListHeaderComponent={listHeader}
+            ListFooterComponent={listFooter}
+            contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-          >
-            <Pressable
-              onPress={handleBack}
-              hitSlop={12}
-              style={styles.backBtnRow}
-            >
-              <Text style={styles.backGlyph}>Back</Text>
-            </Pressable>
-
-            <Text style={styles.resultsTitle}>Friends of friends</Text>
-            <Text style={styles.resultsSubtitle}>
-              {`People your connections know in ${cityLabel}`}
-            </Text>
-
-            {fetchError ? (
-              <Text style={styles.errorText}>{fetchError}</Text>
-            ) : null}
-
-            {sectionKeys.length === 0 && !fetchError ? (
-              <Text style={styles.emptyText}>
-                No connections found through your friends
-              </Text>
-            ) : null}
-
-            {sectionKeys.map((friendName) => {
-              const people = grouped.get(friendName) ?? [];
-              const n = people.length;
-              return (
-                <View key={friendName} style={styles.section}>
-                  <Text style={styles.sectionHeader}>
-                    {`${friendName} knows ${n} people in ${cityLabel}`}
-                  </Text>
-                  {people.map((row, idx) => {
-                    const rating =
-                      typeof row.rating === 'number' &&
-                      !Number.isNaN(row.rating)
-                        ? row.rating
-                        : null;
-                    const stars =
-                      rating != null
-                        ? Math.max(0, Math.min(5, Math.round(rating)))
-                        : null;
-                    return (
-                      <View
-                        key={`${friendName}-${idx}`}
-                        style={styles.card}
-                      >
-                        <Text style={styles.cardNameHidden}>
-                          ••••• •••••
-                        </Text>
-                        {row.university ? (
-                          <Text style={styles.cardUniversity}>
-                            {row.university}
-                          </Text>
-                        ) : null}
-                        {stars != null ? (
-                          <Text style={styles.cardStars}>
-                            <Text style={styles.starGold}>
-                              {'★'.repeat(stars)}
-                            </Text>
-                            <Text style={styles.starMuted}>
-                              {'☆'.repeat(Math.max(0, 5 - stars))}
-                            </Text>
-                          </Text>
-                        ) : null}
-                        {row.teaser_summary ? (
-                          <Text style={styles.cardTeaser}>
-                            {row.teaser_summary}
-                          </Text>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                  <Pressable style={styles.askPill} onPress={() => {}}>
-                    <Text style={styles.askPillLabel}>
-                      {`Ask ${friendName} for access`}
-                    </Text>
-                  </Pressable>
-                </View>
-              );
-            })}
-
-            <View style={styles.footerActionsWrap}>
-              <Pressable
-                style={styles.footerBtnPrimary}
-                onPress={() => navigation.navigate('WebResults')}
-              >
-                <Text style={styles.footerBtnPrimaryLabel}>Keep searching</Text>
-              </Pressable>
-              <Pressable
-                style={styles.footerBtnSecondary}
-                onPress={() => navigation.navigate('Home')}
-              >
-                <Text style={styles.footerBtnSecondaryLabel}>
-                  {"I'm good here"}
-                </Text>
-              </Pressable>
-            </View>
-          </ScrollView>
+          />
         </Animated.View>
       ) : null}
     </SafeAreaView>
@@ -610,9 +800,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   backBtnRow: {
-    alignSelf: 'flex-start',
+    alignSelf: 'stretch',
     paddingTop: 50,
     marginBottom: 12,
+  },
+  backBtn: {
+    alignSelf: 'flex-start',
     paddingVertical: 6,
   },
   backGlyph: {
@@ -620,109 +813,63 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: CHARCOAL,
   },
-  orbitHost: {
+  trigOrbitHost: {
+    width: ORBIT_BOX,
+    height: ORBIT_BOX,
     position: 'relative',
+    alignSelf: 'center',
     marginBottom: 36,
     backgroundColor: IVORY,
   },
-  armPivot: {
+  orbitLineSeg: {
     position: 'absolute',
-    width: 0,
-    height: 0,
+    height: 1,
+    backgroundColor: 'rgba(44,44,42,0.2)',
     zIndex: 0,
   },
-  connectorLine: {
+  trigD2Circle: {
     position: 'absolute',
-    left: 0,
-    top: 0,
-    height: 1,
-    marginTop: -0.5,
-    backgroundColor: LINE,
-  },
-  satelliteOuter: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: SAT_SIZE,
-    height: SAT_SIZE,
+    width: D2_SIZE,
+    height: D2_SIZE,
+    borderRadius: D2_R,
+    backgroundColor: D2_SAT_FILL,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(44,44,42,0.2)',
     zIndex: 1,
   },
-  satelliteCircle: {
-    width: SAT_SIZE,
-    height: SAT_SIZE,
-    borderRadius: SAT_R,
+  trigFriendCircle: {
+    position: 'absolute',
+    width: FRIEND_SIZE,
+    height: FRIEND_SIZE,
+    borderRadius: FRIEND_R,
     backgroundColor: CHARCOAL,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(44,44,42,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  satelliteInitials: {
-    color: IVORY,
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  miniOrbitHost: {
-    position: 'absolute',
-    left: SAT_R,
-    top: SAT_R,
-    width: 0,
-    height: 0,
     zIndex: 2,
   },
-  miniPivot: {
+  trigFriendInitials: {
+    color: IVORY,
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  trigHubCircle: {
     position: 'absolute',
-    left: 0,
-    top: 0,
-    width: 0,
-    height: 0,
-  },
-  miniLine: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    height: 1,
-    marginTop: -0.5,
-    backgroundColor: LINE,
-  },
-  d2SatelliteOuter: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: D2_SAT_SIZE,
-    height: D2_SAT_SIZE,
-  },
-  d2SatelliteCircle: {
-    width: D2_SAT_SIZE,
-    height: D2_SAT_SIZE,
-    borderRadius: D2_SAT_R,
-    backgroundColor: D2_SAT_FILL,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(44,44,42,0.2)',
-  },
-  hubWrap: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 3,
-    backgroundColor: 'transparent',
-  },
-  hubCircle: {
     width: HUB_SIZE,
     height: HUB_SIZE,
     borderRadius: HUB_R,
+    overflow: 'hidden',
     backgroundColor: CHARCOAL,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(44,44,42,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    zIndex: 3,
   },
-  hubInitials: {
-    color: IVORY,
-    fontSize: 22,
-    fontWeight: '600',
-    letterSpacing: 1,
+  trigHubAvatar: {
+    width: HUB_SIZE,
+    height: HUB_SIZE,
+    borderRadius: HUB_R,
   },
   cycleText: {
     fontSize: 16,
@@ -732,55 +879,96 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     paddingHorizontal: 20,
   },
-  scroll: {
+  resultsList: {
     flex: 1,
   },
-  scrollContent: {
+  listContent: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingBottom: 24,
+    paddingTop: 0,
+    backgroundColor: IVORY,
+    flexGrow: 1,
   },
-  resultsTitle: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: CHARCOAL,
-    marginBottom: 8,
-    letterSpacing: -0.4,
+  subHeaderBlock: {
+    paddingTop: 80,
+    alignItems: 'center',
+    width: '100%',
+    paddingBottom: 8,
   },
-  resultsSubtitle: {
-    fontSize: 16,
-    fontWeight: '400',
-    color: MUTED,
-    marginBottom: 24,
-    lineHeight: 22,
+  countHeaderBlock: {
+    paddingTop: 80,
+    alignItems: 'center',
+    paddingBottom: 8,
+    width: '100%',
   },
-  errorText: {
-    fontSize: 15,
-    color: '#8B2942',
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 17,
+  countHeaderLine: {
+    fontSize: 22,
     fontWeight: '500',
     color: CHARCOAL,
     textAlign: 'center',
-    marginTop: 32,
-    marginBottom: 24,
-    lineHeight: 24,
+    lineHeight: 28,
   },
-  section: {
-    marginBottom: 28,
+  countHeaderLineSpacing: {
+    marginBottom: 12,
+  },
+  countHeaderLineAboveSlot: {
+    marginBottom: 6,
+  },
+  countHeaderLineBelowSlot: {
+    marginTop: 6,
+  },
+  countSlotClip: {
+    height: SLOT_DIGIT_HEIGHT,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    minWidth: 100,
+    marginVertical: 10,
+  },
+  countSlotRail: {
+    alignItems: 'center',
+  },
+  countDigitCell: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  countDigit: {
+    fontSize: 72,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 80,
+    includeFontPadding: false,
+  },
+  countDigitMuted: {
+    color: COUNT_MUTED,
+  },
+  countDigitFinal: {
+    color: CHARCOAL,
+  },
+  errorBanner: {
+    fontSize: 15,
+    color: '#8B2942',
+    marginBottom: 20,
+    lineHeight: 22,
+    textAlign: 'center',
+    paddingHorizontal: 12,
   },
   sectionHeader: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '500',
     color: CHARCOAL,
+    marginTop: 24,
     marginBottom: 10,
     lineHeight: 24,
+  },
+  sectionHeaderFirst: {
+    marginTop: 8,
   },
   askPill: {
     alignSelf: 'flex-start',
     marginTop: 4,
-    marginBottom: 0,
+    marginBottom: 20,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 999,
@@ -799,12 +987,13 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 12,
   },
-  cardNameHidden: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: MUTED,
-    letterSpacing: 2,
-    marginBottom: 6,
+  nameRedactBar: {
+    width: 80,
+    height: 16,
+    borderRadius: 4,
+    backgroundColor: CHARCOAL,
+    opacity: 0.15,
+    marginBottom: 10,
   },
   cardUniversity: {
     fontSize: 14,
@@ -827,8 +1016,10 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   footerActionsWrap: {
-    marginTop: 16,
-    marginBottom: 24,
+    marginTop: 24,
+    marginBottom: 40,
+    width: '100%',
+    alignSelf: 'stretch',
     gap: 12,
   },
   footerBtnPrimary: {

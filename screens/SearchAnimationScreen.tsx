@@ -9,6 +9,7 @@ import {
   Animated,
   Easing,
   FlatList,
+  Image,
   ListRenderItem,
   Pressable,
   StyleSheet,
@@ -17,7 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { RootStackParamList } from '../App';
+import type { Degree1SummaryResult, RootStackParamList } from '../App';
 import { supabaseAnonKey } from '../lib/supabase';
 
 const FIND_HOUSING_URL =
@@ -73,13 +74,6 @@ const FIND_HOUSING_MIN_MS = 3000;
 
 type SearchAnimRoute = RouteProp<RootStackParamList, 'SearchAnimation'>;
 type SearchAnimNav = StackNavigationProp<RootStackParamList, 'SearchAnimation'>;
-
-type MatchResult = {
-  name?: string;
-  university?: string | null;
-  rating?: number | null;
-  summary?: string | null;
-};
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -214,7 +208,7 @@ export default function SearchAnimationScreen() {
 
   const [messageIndex, setMessageIndex] = useState(0);
   const [showResultsLayer, setShowResultsLayer] = useState(false);
-  const [results, setResults] = useState<MatchResult[]>([]);
+  const [results, setResults] = useState<Degree1SummaryResult[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const countScroll = useRef(new Animated.Value(0)).current;
@@ -295,7 +289,7 @@ export default function SearchAnimationScreen() {
         }
         const raw = data.degree1Results ?? data.results;
         const list = Array.isArray(raw)
-          ? (raw as MatchResult[])
+          ? (raw as Degree1SummaryResult[])
           : [];
         if (!cancelled) {
           setFetchError(null);
@@ -435,7 +429,7 @@ export default function SearchAnimationScreen() {
     continueOpacity,
   ]);
 
-  const renderItem: ListRenderItem<MatchResult> = useCallback(
+  const renderItem: ListRenderItem<Degree1SummaryResult> = useCallback(
     ({ item, index }) => (
       <SlidingResultCard
         item={item}
@@ -547,6 +541,7 @@ export default function SearchAnimationScreen() {
               date_from,
               date_to,
               preferences,
+              degree1Results: results,
             })
           }
         >
@@ -570,6 +565,7 @@ export default function SearchAnimationScreen() {
       date_from,
       date_to,
       preferences,
+      results,
     ],
   );
 
@@ -597,7 +593,11 @@ export default function SearchAnimationScreen() {
             ))}
             <View style={styles.hubWrap} pointerEvents="none">
               <View style={styles.hubCircle}>
-                <Text style={styles.hubInitials}>EY</Text>
+                <Image
+                  source={require('../assets/handsome-dan.jpg')}
+                  style={styles.hubAvatar}
+                  resizeMode="cover"
+                />
               </View>
             </View>
           </View>
@@ -634,7 +634,7 @@ function SlidingResultCard({
   translateX,
   opacityAnim,
 }: {
-  item: MatchResult;
+  item: Degree1SummaryResult;
   translateX: Animated.Value;
   opacityAnim: Animated.Value;
 }) {
@@ -773,17 +773,15 @@ const styles = StyleSheet.create({
     width: HUB_SIZE,
     height: HUB_SIZE,
     borderRadius: HUB_R,
+    overflow: 'hidden',
     backgroundColor: CHARCOAL,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(44,44,42,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  hubInitials: {
-    color: IVORY,
-    fontSize: 22,
-    fontWeight: '600',
-    letterSpacing: 1,
+  hubAvatar: {
+    width: HUB_SIZE,
+    height: HUB_SIZE,
+    borderRadius: HUB_R,
   },
   cycleText: {
     fontSize: 16,
