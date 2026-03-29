@@ -8,7 +8,7 @@
 ## Inspiration
 
 As students traveling for hackathons like YHack, we quickly realized that finding a place to stay was one of the hardest parts of the experience. Hotels were expensive, often 21+, and coordinating with friends or mutuals was unreliable.
-	We kept asking: *Why isn’t there a smarter way to use the college networks we already have?*
+- We kept asking: *Why isn’t there a smarter way to use the college networks we already have?*
 That’s why we built Crashly—an AI-powered lodging agent that connects your network with real housing options.
 
 ## Features
