@@ -1,6 +1,9 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useRef, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from './lib/supabase';
 
 import HomeScreen from './screens/HomeScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -47,62 +50,46 @@ export type RootStackParamList = {
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export default function App() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const prevSession = useRef<Session | null | undefined>(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (session === undefined) return; // still loading
+    if (!navigationRef.isReady()) return;
+    // Session just cleared → go to Login
+    if (prevSession.current !== undefined && prevSession.current !== null && session === null) {
+      navigationRef.navigate('Login');
+    }
+    prevSession.current = session;
+  }, [session]);
+
+  if (session === undefined) return null; // splash / loading
+
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <StatusBar style="auto" />
-      <Stack.Navigator initialRouteName="Login">
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Onboarding"
-          component={OnboardingScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Search"
-          component={SearchScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="SearchAnimation"
-          component={SearchAnimationScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Degree2Animation"
-          component={Degree2AnimationScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Degree2"
-          component={Degree2Screen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="WebResults"
-          component={WebResultsScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="NextSearch"
-          component={NextSearchScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="TripResults"
-          component={TripResultsScreen}
-          options={{ headerShown: false }}
-        />
+      <Stack.Navigator initialRouteName={session ? 'Home' : 'Login'}>
+        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="SearchAnimation" component={SearchAnimationScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Degree2Animation" component={Degree2AnimationScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Degree2" component={Degree2Screen} options={{ headerShown: false }} />
+        <Stack.Screen name="WebResults" component={WebResultsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="NextSearch" component={NextSearchScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="TripResults" component={TripResultsScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
