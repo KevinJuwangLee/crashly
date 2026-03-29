@@ -73,4 +73,4 @@ npx expo start
 - Android Emulator  
 - Expo Go (mobile device)   
 
-### [Click here to watch our Demo Video](https://youtu.be/0YCHKEUEQG8?si=Tr9yKawvncQL8Xg)
+### [Click here to watch our Demo Video](https://youtube.com/video/mOG1gWjKqoo)
