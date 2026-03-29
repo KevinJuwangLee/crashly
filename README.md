@@ -45,22 +45,36 @@ Crashly was built using:
 
 
 ## Installation & Running Crashly
-
 To run Crashly locally:
 1. Clone the repository  
 2. Install dependencies  
-
 ```bash
 npm install
 ```
+3. Set up environment variables  
+Create a `.env` file in the root directory and add the following:
 
-3. Start the Expo server  
+```env
+EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+TAVILY_API_KEY=your_tavily_api_key
+GOOGLE_PLACES_API_KEY=your_google_places_api_key
+```
+
+4. Set up Supabase  
+- Create a project on Supabase  
+- Run the required database schema (tables for users, connections, trips, messaging)  
+- Enable authentication (email/.edu recommended)  
+
+5. Start the Expo server  
 ```bash
 npx expo start
 ```
-4.	Open in:
-	•	iOS Simulator
-	•	Android Emulator
-	•	Expo Go (mobile device)
+
+6. Open in:
+- iOS Simulator  
+- Android Emulator  
+- Expo Go (mobile device)  
 
 ### [Click here to watch our Demo Video]([https://youtu.be/0YCHKEUEQG8?si=Tr9yKawvncQL8XgJ ](https://youtube.com/video/mOG1gWjKqoo )
