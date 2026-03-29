@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { supabase } from '../lib/supabase';
 import type { RootStackParamList } from '../App';
 
 type LoginScreenNavigation = StackNavigationProp<RootStackParamList, 'Login'>;
@@ -250,12 +251,28 @@ export default function LoginScreen() {
   const theme = isDark ? dark : light;
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const goToHome = () => navigation.navigate('Home');
   const goToOnboarding = () => navigation.navigate('Onboarding');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLogin = async () => {
+    setError(null);
+    if (!/^[^\s@]+@[^\s@]+\.edu$/i.test(email)) {
+      setError('Only university .edu email addresses are allowed.');
+      return;
+    }
+    setLoading(true);
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (authError) {
+      setError(authError.message);
+    }
+    // Navigation is handled by the auth guard in App.tsx
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -320,8 +337,12 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          <Pressable style={styles.primaryButton} onPress={goToHome}>
-            <Text style={styles.primaryLabel}>Continue</Text>
+          {error && (
+            <Text style={{ color: 'red', marginBottom: 8, textAlign: 'center' }}>{error}</Text>
+          )}
+
+          <Pressable style={styles.primaryButton} onPress={handleLogin} disabled={loading}>
+            <Text style={styles.primaryLabel}>{loading ? 'Signing in…' : 'Continue'}</Text>
           </Pressable>
 
           <View style={styles.dividerRow}>

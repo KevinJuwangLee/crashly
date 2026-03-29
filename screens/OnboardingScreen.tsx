@@ -1,5 +1,3 @@
-import { useNavigation } from '@react-navigation/native';
-import type { StackNavigationProp } from '@react-navigation/stack';
 import {
   useCallback,
   useEffect,
@@ -8,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { navigationRef } from '../App';
 import {
   Animated,
   Easing,
@@ -24,15 +23,45 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { RootStackParamList } from '../App';
+import { supabase } from '../lib/supabase';
 import type { CrashlyRole, OnboardingData } from '../types/onboarding';
+import universitiesData from '../assets/universities.json';
 
-type OnboardingNav = StackNavigationProp<RootStackParamList, 'Onboarding'>;
+type UniEntry = { name: string; city: string; state: string };
+const allUniversities = universitiesData as UniEntry[];
+
+const STATE_NAMES: Record<string, string> = {
+  AK: 'Alaska', AL: 'Alabama', AR: 'Arkansas', AS: 'American Samoa',
+  AZ: 'Arizona', CA: 'California', CO: 'Colorado', CT: 'Connecticut',
+  DC: 'Washington D.C.', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
+  GU: 'Guam', HI: 'Hawaii', IA: 'Iowa', ID: 'Idaho', IL: 'Illinois',
+  IN: 'Indiana', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana',
+  MA: 'Massachusetts', MD: 'Maryland', ME: 'Maine', MI: 'Michigan',
+  MN: 'Minnesota', MO: 'Missouri', MS: 'Mississippi', MT: 'Montana',
+  NC: 'North Carolina', ND: 'North Dakota', NE: 'Nebraska', NH: 'New Hampshire',
+  NJ: 'New Jersey', NM: 'New Mexico', NV: 'Nevada', NY: 'New York',
+  OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania',
+  PR: 'Puerto Rico', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah',
+  VA: 'Virginia', VI: 'U.S. Virgin Islands', VT: 'Vermont',
+  WA: 'Washington', WI: 'Wisconsin', WV: 'West Virginia', WY: 'Wyoming',
+};
+
+const ALL_STATES = [...new Set(allUniversities.map((u) => u.state))]
+  .sort((a, b) => (STATE_NAMES[a] ?? a).localeCompare(STATE_NAMES[b] ?? b));
+
+function getCitiesForState(state: string): string[] {
+  return [...new Set(allUniversities.filter((u) => u.state === state).map((u) => u.city))].sort();
+}
+
 
 type StepId =
+  | 'email'
+  | 'password'
   | 'role'
   | 'name'
   | 'school'
+  | 'state'
   | 'city'
   | 'cohabit'
   | 'paying'
@@ -46,10 +75,13 @@ type Transition =
   | { mode: 'back'; prevIndex: number };
 
 type Answers = {
+  email: string;
+  password: string;
   role: CrashlyRole | null;
   firstName: string;
   lastName: string;
   university: string;
+  state: string;
   city: string;
   cohabitPreference: OnboardingData['cohabitPreference'] | null;
   paying: OnboardingData['paying'] | null;
@@ -58,10 +90,13 @@ type Answers = {
 };
 
 const initialAnswers = (): Answers => ({
+  email: '',
+  password: '',
   role: null,
   firstName: '',
   lastName: '',
   university: '',
+  state: '',
   city: '',
   cohabitPreference: null,
   paying: null,
@@ -70,7 +105,7 @@ const initialAnswers = (): Answers => ({
 });
 
 function buildSteps(role: CrashlyRole | null): StepId[] {
-  const s: StepId[] = ['role', 'name', 'school', 'city', 'cohabit'];
+  const s: StepId[] = ['email', 'password', 'role', 'name', 'school', 'state', 'city', 'cohabit'];
   if (role === 'stay' || role === 'both') s.push('paying');
   if (role === 'host' || role === 'both') {
     s.push('charging');
@@ -80,27 +115,6 @@ function buildSteps(role: CrashlyRole | null): StepId[] {
   return s;
 }
 
-function toOnboardingData(a: Answers): OnboardingData {
-  if (!a.role || !a.cohabitPreference) {
-    throw new Error('Incomplete onboarding');
-  }
-  const base: OnboardingData = {
-    role: a.role,
-    firstName: a.firstName.trim(),
-    lastName: a.lastName.trim(),
-    university: a.university.trim(),
-    city: a.city.trim(),
-    cohabitPreference: a.cohabitPreference,
-  };
-  if (a.role === 'stay' || a.role === 'both') {
-    if (a.paying) base.paying = a.paying;
-  }
-  if (a.role === 'host' || a.role === 'both') {
-    if (a.charging) base.charging = a.charging;
-    base.availability = [...a.availability];
-  }
-  return base;
-}
 
 type Theme = {
   background: string;
@@ -332,7 +346,6 @@ function createStyles(t: Theme) {
 }
 
 export default function OnboardingScreen() {
-  const navigation = useNavigation<OnboardingNav>();
   const { width: windowWidth } = useWindowDimensions();
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
@@ -342,6 +355,11 @@ export default function OnboardingScreen() {
   const [answers, setAnswers] = useState<Answers>(initialAnswers);
   const [stepIndex, setStepIndex] = useState(0);
   const [transition, setTransition] = useState<Transition>(null);
+  const [signUpError, setSignUpError] = useState<string | null>(null);
+  const [signingUp, setSigningUp] = useState(false);
+  const [schoolSearch, setSchoolSearch] = useState('');
+  const [stateSearch, setStateSearch] = useState('');
+  const [citySearch, setCitySearch] = useState('');
   const translateX = useRef(new Animated.Value(0)).current;
 
   const steps = useMemo(() => buildSteps(answers.role), [answers.role]);
@@ -413,6 +431,10 @@ export default function OnboardingScreen() {
 
   const canProceed = useMemo(() => {
     switch (currentStepId) {
+      case 'email':
+        return /^[^\s@]+@[^\s@]+\.edu$/i.test(answers.email);
+      case 'password':
+        return answers.password.length >= 6;
       case 'role':
         return answers.role !== null;
       case 'name':
@@ -422,6 +444,8 @@ export default function OnboardingScreen() {
         );
       case 'school':
         return answers.university.trim().length > 0;
+      case 'state':
+        return answers.state.trim().length > 0;
       case 'city':
         return answers.city.trim().length > 0;
       case 'cohabit':
@@ -441,7 +465,7 @@ export default function OnboardingScreen() {
 
   const onSelectRole = useCallback(
     (role: CrashlyRole) => {
-      if (busy || stepIndex !== 0) return;
+      if (busy || currentStepId !== 'role') return;
       setAnswers((prev) => ({
         ...prev,
         role,
@@ -449,7 +473,7 @@ export default function OnboardingScreen() {
         charging: null,
         availability: [],
       }));
-      setTransition({ mode: 'forward', nextIndex: 1 });
+      setTransition({ mode: 'forward', nextIndex: stepIndex + 1 });
     },
     [busy, stepIndex],
   );
@@ -475,13 +499,19 @@ export default function OnboardingScreen() {
     });
   };
 
-  const finishOnboarding = () => {
-    try {
-      const onboarding = toOnboardingData(answers);
-      navigation.navigate('Home', { onboarding });
-    } catch {
-      /* incomplete */
+  const finishOnboarding = async () => {
+    setSignUpError(null);
+    setSigningUp(true);
+    const { error } = await supabase.auth.signUp({
+      email: answers.email,
+      password: answers.password,
+    });
+    setSigningUp(false);
+    if (error) {
+      setSignUpError(error.message);
+      return;
     }
+    navigationRef.navigate('Home');
   };
 
   const renderStepBody = (idx: number) => {
@@ -504,6 +534,68 @@ export default function OnboardingScreen() {
     );
 
     switch (id) {
+      case 'email':
+        return (
+          <>
+            <Text style={styles.question}>What's your college email?</Text>
+            <Text style={{ fontSize: 14, color: theme.textMuted, marginBottom: 20, marginTop: -20 }}>
+              Only .edu addresses are accepted.
+            </Text>
+            <View style={styles.fieldGroup}>
+              <View style={styles.inputShell}>
+                <TextInput
+                  style={styles.input}
+                  value={answers.email}
+                  onChangeText={(email) => setAnswers((p) => ({ ...p, email }))}
+                  placeholder="you@university.edu"
+                  placeholderTextColor={theme.placeholder}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                />
+              </View>
+            </View>
+            <Pressable
+              style={[styles.primaryButton, !canProceed && idx === stepIndex && styles.primaryButtonDisabled]}
+              onPress={requestForward}
+              disabled={busy || !canProceed || idx !== stepIndex}
+            >
+              <Text style={styles.primaryLabel}>Continue</Text>
+            </Pressable>
+          </>
+        );
+      case 'password':
+        return (
+          <>
+            <Text style={styles.question}>Create a password</Text>
+            <Text style={{ fontSize: 14, color: theme.textMuted, marginBottom: 20, marginTop: -20 }}>
+              Must be at least 6 characters.
+            </Text>
+            <View style={styles.fieldGroup}>
+              <View style={styles.inputShell}>
+                <TextInput
+                  style={styles.input}
+                  value={answers.password}
+                  onChangeText={(password) => setAnswers((p) => ({ ...p, password }))}
+                  placeholder="••••••••"
+                  placeholderTextColor={theme.placeholder}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="new-password"
+                />
+              </View>
+            </View>
+            <Pressable
+              style={[styles.primaryButton, !canProceed && idx === stepIndex && styles.primaryButtonDisabled]}
+              onPress={requestForward}
+              disabled={busy || !canProceed || idx !== stepIndex}
+            >
+              <Text style={styles.primaryLabel}>Continue</Text>
+            </Pressable>
+          </>
+        );
       case 'role':
         return (
           <>
@@ -571,31 +663,56 @@ export default function OnboardingScreen() {
             </Pressable>
           </>
         );
-      case 'school':
+      case 'school': {
+        const schoolResults = schoolSearch.trim().length > 0
+          ? allUniversities
+              .filter((u) => u.name.toLowerCase().includes(schoolSearch.toLowerCase()))
+              .slice(0, 12)
+          : [];
         return (
           <>
-            <Text style={styles.question}>
-              Where do you go to school?
-            </Text>
+            <Text style={styles.question}>Where do you go to school?</Text>
             <View style={styles.fieldGroup}>
               <View style={styles.inputShell}>
                 <TextInput
                   style={styles.input}
-                  value={answers.university}
-                  onChangeText={(university) =>
-                    setAnswers((p) => ({ ...p, university }))
-                  }
-                  placeholder="University name"
+                  value={schoolSearch}
+                  onChangeText={(q) => {
+                    setSchoolSearch(q);
+                    setAnswers((p) => ({ ...p, university: '' }));
+                  }}
+                  placeholder="Search your university…"
                   placeholderTextColor={theme.placeholder}
                   autoCapitalize="words"
+                  autoCorrect={false}
                 />
               </View>
             </View>
+            {answers.university ? (
+              <View style={[styles.optionCard, styles.optionCardSelected, { marginBottom: 16 }]}>
+                <Text style={styles.optionLabel}>{answers.university}</Text>
+              </View>
+            ) : (
+              <View style={{ gap: 8, marginBottom: 16 }}>
+                {schoolResults.map((u) => (
+                  <Pressable
+                    key={u.name + u.city}
+                    style={styles.optionCard}
+                    onPress={() => {
+                      setAnswers((p) => ({ ...p, university: u.name }));
+                      setSchoolSearch(u.name);
+                    }}
+                  >
+                    <Text style={styles.optionLabel}>{u.name}</Text>
+                    <Text style={{ fontSize: 13, color: theme.textMuted, marginTop: 2 }}>
+                      {u.city}, {u.state}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             <Pressable
-              style={[
-                styles.primaryButton,
-                !canProceed && idx === stepIndex && styles.primaryButtonDisabled,
-              ]}
+              style={[styles.primaryButton, !canProceed && idx === stepIndex && styles.primaryButtonDisabled]}
               onPress={requestForward}
               disabled={busy || !canProceed || idx !== stepIndex}
             >
@@ -603,27 +720,99 @@ export default function OnboardingScreen() {
             </Pressable>
           </>
         );
-      case 'city':
+      }
+      case 'state': {
+        const filteredStates = stateSearch.trim()
+          ? ALL_STATES.filter((abbr) =>
+              (STATE_NAMES[abbr] ?? abbr).toLowerCase().includes(stateSearch.toLowerCase())
+            )
+          : ALL_STATES;
         return (
           <>
-            <Text style={styles.question}>Where are you based?</Text>
+            <Text style={styles.question}>What state are you based in?</Text>
             <View style={styles.fieldGroup}>
               <View style={styles.inputShell}>
                 <TextInput
                   style={styles.input}
-                  value={answers.city}
-                  onChangeText={(city) => setAnswers((p) => ({ ...p, city }))}
-                  placeholder="City"
+                  value={stateSearch}
+                  onChangeText={(q) => {
+                    setStateSearch(q);
+                    setAnswers((p) => ({ ...p, state: '', city: '' }));
+                    setCitySearch('');
+                  }}
+                  placeholder="Search state…"
                   placeholderTextColor={theme.placeholder}
                   autoCapitalize="words"
+                  autoCorrect={false}
                 />
               </View>
             </View>
+            <View style={styles.optionsBlock}>
+              {filteredStates.map((abbr) => (
+                <Pressable
+                  key={abbr}
+                  style={[styles.optionCard, answers.state === abbr && styles.optionCardSelected]}
+                  onPress={() => {
+                    setAnswers((p) => ({ ...p, state: abbr, city: '' }));
+                    setStateSearch(STATE_NAMES[abbr] ?? abbr);
+                    setCitySearch('');
+                    if (idx === stepIndex) setTransition({ mode: 'forward', nextIndex: stepIndex + 1 });
+                  }}
+                  disabled={busy}
+                >
+                  <Text style={styles.optionLabel}>{STATE_NAMES[abbr] ?? abbr}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        );
+      }
+      case 'city': {
+        const stateCities = getCitiesForState(answers.state);
+        const cityResults = citySearch.trim().length > 0
+          ? stateCities.filter((c) => c.toLowerCase().includes(citySearch.toLowerCase())).slice(0, 12)
+          : stateCities.slice(0, 12);
+        return (
+          <>
+            <Text style={styles.question}>Which city?</Text>
+            <View style={styles.fieldGroup}>
+              <View style={styles.inputShell}>
+                <TextInput
+                  style={styles.input}
+                  value={citySearch}
+                  onChangeText={(q) => {
+                    setCitySearch(q);
+                    setAnswers((p) => ({ ...p, city: '' }));
+                  }}
+                  placeholder="Search city…"
+                  placeholderTextColor={theme.placeholder}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+              </View>
+            </View>
+            {answers.city ? (
+              <View style={[styles.optionCard, styles.optionCardSelected, { marginBottom: 16 }]}>
+                <Text style={styles.optionLabel}>{answers.city}</Text>
+              </View>
+            ) : (
+              <View style={{ gap: 8, marginBottom: 16 }}>
+                {cityResults.map((c) => (
+                  <Pressable
+                    key={c}
+                    style={styles.optionCard}
+                    onPress={() => {
+                      setAnswers((p) => ({ ...p, city: c }));
+                      setCitySearch(c);
+                    }}
+                  >
+                    <Text style={styles.optionLabel}>{c}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             <Pressable
-              style={[
-                styles.primaryButton,
-                !canProceed && idx === stepIndex && styles.primaryButtonDisabled,
-              ]}
+              style={[styles.primaryButton, !canProceed && idx === stepIndex && styles.primaryButtonDisabled]}
               onPress={requestForward}
               disabled={busy || !canProceed || idx !== stepIndex}
             >
@@ -631,6 +820,7 @@ export default function OnboardingScreen() {
             </Pressable>
           </>
         );
+      }
       case 'cohabit':
         return (
           <>
@@ -766,12 +956,15 @@ export default function OnboardingScreen() {
               We&apos;ll use this to match you thoughtfully. You can update
               anything later.
             </Text>
+            {signUpError && (
+              <Text style={{ color: 'red', marginBottom: 12, textAlign: 'center' }}>{signUpError}</Text>
+            )}
             <Pressable
               style={styles.primaryButton}
               onPress={finishOnboarding}
-              disabled={busy}
+              disabled={busy || signingUp}
             >
-              <Text style={styles.primaryLabel}>{`Let's go`}</Text>
+              <Text style={styles.primaryLabel}>{signingUp ? 'Creating account…' : `Let's go`}</Text>
             </Pressable>
           </>
         );

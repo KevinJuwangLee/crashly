@@ -29,6 +29,8 @@ import MapView, { PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RootStackParamList } from '../App';
+import { supabase } from '../lib/supabase';
+import type { CrashlyRole, OnboardingData } from '../types/onboarding';
 import universitiesJson from '../assets/universities.json';
 
 type HomeNav = StackNavigationProp<RootStackParamList, 'Home'>;
@@ -460,6 +462,13 @@ function createStyles(t: Theme) {
     collapsedOverlayInner: {
       flex: 1,
       justifyContent: 'flex-start',
+    },
+    heroHi: {
+      fontSize: 16,
+      fontWeight: '500',
+      color: t.textMuted,
+      letterSpacing: -0.1,
+      marginBottom: 4,
     },
     heroGreeting: {
       fontSize: 38,
@@ -905,6 +914,268 @@ function createStyles(t: Theme) {
       color: t.textMuted,
       textAlign: 'center',
     },
+    hamburgerBtn: {
+      position: 'absolute',
+      right: 20,
+      zIndex: 100,
+      padding: 8,
+      gap: 5,
+    },
+    hamburgerLine: {
+      width: 22,
+      height: 2,
+      borderRadius: 1,
+      backgroundColor: t.text,
+    },
+    menuOverlay: {
+      flex: 1,
+      flexDirection: 'row',
+      backgroundColor: 'rgba(0,0,0,0.3)',
+    },
+    menuPanel: {
+      width: '55%',
+      height: '100%',
+      backgroundColor: t.pageBg,
+      borderLeftWidth: 1,
+      borderLeftColor: t.cardBorder,
+    },
+    menuItem: {
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+    },
+    menuItemText: {
+      fontSize: 15,
+      fontWeight: '500',
+      color: t.text,
+    },
+    menuItemActive: {
+      fontWeight: '700',
+      color: t.text,
+    },
+    menuDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: t.cardBorder,
+    },
+    menuItemSignOut: {
+      color: '#E05252',
+    },
+    profileHeader: {
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingBottom: 20,
+    },
+    profileAvatar: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: t.primaryBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+    },
+    profileInitials: {
+      fontSize: 22,
+      fontWeight: '600',
+      color: t.primaryText,
+    },
+    profileName: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: t.text,
+      letterSpacing: -0.3,
+      marginBottom: 4,
+      textAlign: 'center',
+    },
+    profileUniversity: {
+      fontSize: 13,
+      color: t.textMuted,
+      textAlign: 'center',
+      marginBottom: 2,
+    },
+    profileLocation: {
+      fontSize: 13,
+      color: t.textMuted,
+      textAlign: 'center',
+    },
+    profileStats: {
+      flexDirection: 'row',
+      marginHorizontal: 20,
+      marginBottom: 16,
+      backgroundColor: t.cardBg,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: t.cardBorder,
+      overflow: 'hidden',
+    },
+    profileStat: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 12,
+    },
+    profileStatNum: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: t.text,
+      letterSpacing: -0.3,
+    },
+    profileStatLabel: {
+      fontSize: 11,
+      color: t.textMuted,
+      marginTop: 2,
+      fontWeight: '500',
+    },
+    profileStatDivider: {
+      width: StyleSheet.hairlineWidth,
+      backgroundColor: t.cardBorder,
+    },
+    profileInfoBlock: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+    },
+    profileInfoLabel: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: t.textMuted,
+    },
+    profileInfoValue: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: t.text,
+      flexShrink: 1,
+      textAlign: 'right',
+      marginLeft: 12,
+    },
+    profileRatingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 8,
+      gap: 4,
+    },
+    profileRatingStar: {
+      fontSize: 13,
+      color: '#F5A623',
+    },
+    profileRatingNum: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: t.text,
+    },
+    profileRatingCount: {
+      fontSize: 12,
+      color: t.textMuted,
+    },
+    profileSectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+    },
+    profileSectionTitle: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: t.textMuted,
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+    },
+    profileEditBtn: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: t.text,
+    },
+    profileEditLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: t.textMuted,
+      marginBottom: 8,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    profileChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+    },
+    profileChip: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: t.cardBorder,
+      backgroundColor: t.cardBg,
+    },
+    profileChipOn: {
+      backgroundColor: t.primaryBg,
+      borderColor: t.primaryBg,
+    },
+    profileChipText: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: t.text,
+    },
+    profileChipTextOn: {
+      color: t.primaryText,
+    },
+    profileSaveBtn: {
+      flex: 1,
+      backgroundColor: t.primaryBg,
+      borderRadius: 10,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    profileSaveBtnText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: t.primaryText,
+    },
+    profileCancelBtn: {
+      flex: 1,
+      backgroundColor: t.cardBg,
+      borderRadius: 10,
+      paddingVertical: 10,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: t.cardBorder,
+    },
+    profileCancelBtnText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: t.text,
+    },
+    menuProfileRow: {
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 20,
+      gap: 8,
+    },
+    menuProfileAvatar: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: t.primaryBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    menuProfileInitials: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: t.primaryText,
+    },
+    menuProfileName: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: t.text,
+      letterSpacing: -0.2,
+      textAlign: 'center',
+    },
+    menuProfileSub: {
+      fontSize: 12,
+      color: t.textMuted,
+      marginTop: 1,
+      textAlign: 'center',
+    },
   });
 }
 
@@ -929,10 +1200,12 @@ const MOCK_TRIPS = [
   { id: '3', destination: 'Portland, OR', dates: 'May 2 – May 5, 2026', status: 'Searching' },
 ] as const;
 
-const MOCK_REQUESTS = [
+type ConnectionEntry = { id: string; name: string; university: string };
+
+const INITIAL_REQUESTS: ConnectionEntry[] = [
   { id: '1', name: 'Jordan Lee', university: 'UT Austin' },
   { id: '2', name: 'Sam Rivera', university: 'CU Boulder' },
-] as const;
+];
 
 export default function HomeScreen() {
   const navigation = useNavigation<HomeNav>();
@@ -958,6 +1231,71 @@ export default function HomeScreen() {
   );
 
   const [expanded, setExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeView, setActiveView] = useState<'home' | 'connections' | 'profile'>('home');
+  const [requests, setRequests] = useState<ConnectionEntry[]>(INITIAL_REQUESTS);
+  const [connections, setConnections] = useState<ConnectionEntry[]>([]);
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [editRole, setEditRole] = useState<CrashlyRole | null>(onboarding?.role ?? null);
+  const [editCohabit, setEditCohabit] = useState<OnboardingData['cohabitPreference'] | null>(onboarding?.cohabitPreference ?? null);
+  const [editPaying, setEditPaying] = useState<OnboardingData['paying'] | null>(onboarding?.paying ?? null);
+  const [editCharging, setEditCharging] = useState<OnboardingData['charging'] | null>(onboarding?.charging ?? null);
+  const [savedRole, setSavedRole] = useState<CrashlyRole | null>(onboarding?.role ?? null);
+  const [savedCohabit, setSavedCohabit] = useState<OnboardingData['cohabitPreference'] | null>(onboarding?.cohabitPreference ?? null);
+  const [savedPaying, setSavedPaying] = useState<OnboardingData['paying'] | null>(onboarding?.paying ?? null);
+  const [savedCharging, setSavedCharging] = useState<OnboardingData['charging'] | null>(onboarding?.charging ?? null);
+
+  const startEdit = useCallback(() => {
+    setEditRole(savedRole);
+    setEditCohabit(savedCohabit);
+    setEditPaying(savedPaying);
+    setEditCharging(savedCharging);
+    setProfileEditing(true);
+  }, [savedRole, savedCohabit, savedPaying, savedCharging]);
+
+  const saveEdit = useCallback(() => {
+    setSavedRole(editRole);
+    setSavedCohabit(editCohabit);
+    setSavedPaying(editPaying);
+    setSavedCharging(editCharging);
+    setProfileEditing(false);
+  }, [editRole, editCohabit, editPaying, editCharging]);
+
+  const cancelEdit = useCallback(() => {
+    setProfileEditing(false);
+  }, []);
+
+  const acceptRequest = useCallback((id: string) => {
+    setRequests((prev) => {
+      const req = prev.find((r) => r.id === id);
+      if (req) setConnections((c) => [...c, req]);
+      return prev.filter((r) => r.id !== id);
+    });
+  }, []);
+
+  const declineRequest = useCallback((id: string) => {
+    setRequests((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+  const menuSlide = useRef(new Animated.Value(screenWidth)).current;
+
+  const openMenu = useCallback(() => {
+    setMenuOpen(true);
+    Animated.timing(menuSlide, {
+      toValue: 0,
+      duration: 280,
+      easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+      useNativeDriver: true,
+    }).start();
+  }, [menuSlide, screenWidth]);
+
+  const closeMenu = useCallback(() => {
+    Animated.timing(menuSlide, {
+      toValue: screenWidth,
+      duration: 240,
+      easing: Easing.bezier(0.55, 0.06, 0.68, 0.19),
+      useNativeDriver: true,
+    }).start(() => setMenuOpen(false));
+  }, [menuSlide, screenWidth]);
   const [destinationCity, setDestinationCity] = useState('');
   const [destinationState, setDestinationState] = useState('');
   const [preferences, setPreferences] = useState('');
@@ -1443,6 +1781,71 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={['bottom']}>
+      {/* Hamburger button — floats top-right above everything */}
+      <Pressable
+        style={[styles.hamburgerBtn, { top: insets.top + 12 }]}
+        onPress={openMenu}
+        hitSlop={12}
+      >
+        <View style={styles.hamburgerLine} />
+        <View style={styles.hamburgerLine} />
+        <View style={styles.hamburgerLine} />
+      </Pressable>
+
+      {/* Slide-in panel from right */}
+      <Modal
+        visible={menuOpen}
+        transparent
+        animationType="none"
+        onRequestClose={closeMenu}
+      >
+        <View style={styles.menuOverlay}>
+          <Pressable style={{ flex: 1 }} onPress={closeMenu} />
+          <Animated.View
+            style={[styles.menuPanel, { transform: [{ translateX: menuSlide }] }]}
+          >
+            <View style={{ paddingTop: insets.top + 24, flex: 1 }}>
+              {/* Profile identity at top of panel */}
+              <Pressable
+                style={styles.menuProfileRow}
+                onPress={() => { setActiveView('profile'); closeMenu(); }}
+              >
+                <View style={styles.menuProfileAvatar}>
+                  <Text style={styles.menuProfileInitials}>
+                    {`${onboarding?.firstName?.trim()?.[0] ?? ''}${onboarding?.lastName?.trim()?.[0] ?? ''}`.toUpperCase() || '?'}
+                  </Text>
+                </View>
+                <Text style={styles.menuProfileName} numberOfLines={1}>
+                  {[onboarding?.firstName, onboarding?.lastName].filter(Boolean).join(' ') || 'Your Name'}
+                </Text>
+                {onboarding?.university ? (
+                  <Text style={styles.menuProfileSub} numberOfLines={1}>{onboarding.university}</Text>
+                ) : null}
+              </Pressable>
+
+              <View style={styles.menuDivider} />
+
+              <Pressable style={styles.menuItem} onPress={() => { setActiveView('home'); closeMenu(); }}>
+                <Text style={[styles.menuItemText, activeView === 'home' && styles.menuItemActive]}>Home</Text>
+              </Pressable>
+              <View style={styles.menuDivider} />
+              <Pressable style={styles.menuItem} onPress={() => { setActiveView('profile'); closeMenu(); }}>
+                <Text style={[styles.menuItemText, activeView === 'profile' && styles.menuItemActive]}>Profile</Text>
+              </Pressable>
+              <View style={styles.menuDivider} />
+              <Pressable style={styles.menuItem} onPress={() => { setActiveView('connections'); closeMenu(); }}>
+                <Text style={[styles.menuItemText, activeView === 'connections' && styles.menuItemActive]}>
+                  {`Connection Requests${requests.length > 0 ? ` (${requests.length})` : ''}`}
+                </Text>
+              </Pressable>
+              <View style={styles.menuDivider} />
+              <Pressable style={styles.menuItem} onPress={async () => { closeMenu(); await supabase.auth.signOut(); }}>
+                <Text style={[styles.menuItemText, styles.menuItemSignOut]}>Sign Out</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -1454,8 +1857,8 @@ export default function HomeScreen() {
           style={[
             styles.domeScrollSection,
             {
-              height: collapsedClip,
-              opacity: expanded ? 0 : 1,
+              height: activeView === 'profile' ? 0 : collapsedClip,
+              opacity: expanded ? 0 : activeView === 'profile' ? 0 : 1,
             },
           ]}
           pointerEvents={expanded ? 'none' : 'auto'}
@@ -1470,8 +1873,9 @@ export default function HomeScreen() {
                   { paddingTop: insets.top + 12 },
                 ]}
               >
+                <Text style={styles.heroHi}>{`Hi, ${displayName}!`}</Text>
                 <Text style={styles.heroGreeting}>
-                  {`Where to next, ${displayName}?`}
+                  {`Where to next?`}
                 </Text>
                 <Text style={styles.heroSubtitle}>
                   {`Tell me where you're headed`}
@@ -1490,39 +1894,182 @@ export default function HomeScreen() {
         <View style={styles.scrollPadded}>
           <View style={{ height: 8 }} />
 
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming trips</Text>
-            <Pressable hitSlop={8}>
-              <Text style={styles.addBtn}>Add</Text>
-            </Pressable>
-          </View>
-          {MOCK_TRIPS.map((trip) => (
-            <View key={trip.id} style={styles.tripCard}>
-              <Text style={styles.tripDest}>{trip.destination}</Text>
-              <Text style={styles.tripDates}>{trip.dates}</Text>
-              <View style={styles.pill}>
-                <Text style={styles.pillText}>{trip.status}</Text>
+          {activeView === 'home' && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Upcoming trips</Text>
+                <Pressable hitSlop={8}>
+                  <Text style={styles.addBtn}>Add</Text>
+                </Pressable>
               </View>
-            </View>
-          ))}
+              {MOCK_TRIPS.map((trip) => (
+                <View key={trip.id} style={styles.tripCard}>
+                  <Text style={styles.tripDest}>{trip.destination}</Text>
+                  <Text style={styles.tripDates}>{trip.dates}</Text>
+                  <View style={styles.pill}>
+                    <Text style={styles.pillText}>{trip.status}</Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
 
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Connection requests</Text>
-          </View>
-          {MOCK_REQUESTS.map((req) => (
-            <View key={req.id} style={styles.reqCard}>
-              <Text style={styles.reqName}>{req.name}</Text>
-              <Text style={styles.reqSchool}>{req.university}</Text>
-              <View style={styles.reqRow}>
-                <Pressable style={styles.acceptBtn}>
-                  <Text style={styles.acceptLabel}>Accept</Text>
-                </Pressable>
-                <Pressable style={styles.declineBtn}>
-                  <Text style={styles.declineLabel}>Decline</Text>
-                </Pressable>
+          {activeView === 'profile' && (
+            <>
+              {/* Avatar + name */}
+              <View style={[styles.profileHeader, { marginTop: insets.top + 20 }]}>
+                <View style={styles.profileAvatar}>
+                  <Text style={styles.profileInitials}>
+                    {`${onboarding?.firstName?.trim()?.[0] ?? ''}${onboarding?.lastName?.trim()?.[0] ?? ''}`.toUpperCase() || '?'}
+                  </Text>
+                </View>
+                <Text style={styles.profileName}>
+                  {[onboarding?.firstName, onboarding?.lastName].filter(Boolean).join(' ') || 'Your Name'}
+                </Text>
+                {onboarding?.university ? <Text style={styles.profileUniversity}>{onboarding.university}</Text> : null}
+                {onboarding?.city ? <Text style={styles.profileLocation}>{onboarding.city}</Text> : null}
+                <View style={styles.profileRatingRow}>
+                  <Text style={styles.profileRatingStar}>★★★★★</Text>
+                  <Text style={styles.profileRatingNum}>4.8</Text>
+                  <Text style={styles.profileRatingCount}>(12 reviews)</Text>
+                </View>
               </View>
-            </View>
-          ))}
+
+              {/* Stats */}
+              <View style={styles.profileStats}>
+                <View style={styles.profileStat}>
+                  <Text style={styles.profileStatNum}>{connections.length}</Text>
+                  <Text style={styles.profileStatLabel}>Connections</Text>
+                </View>
+                <View style={styles.profileStatDivider} />
+                <View style={styles.profileStat}>
+                  <Text style={styles.profileStatNum}>{requests.length}</Text>
+                  <Text style={styles.profileStatLabel}>Pending</Text>
+                </View>
+              </View>
+
+              {/* Info / Edit */}
+              <View style={styles.profileSectionHeader}>
+                <Text style={styles.profileSectionTitle}>About</Text>
+                {!profileEditing && (
+                  <Pressable onPress={startEdit} hitSlop={8}>
+                    <Text style={styles.profileEditBtn}>Edit</Text>
+                  </Pressable>
+                )}
+              </View>
+
+              {profileEditing ? (
+                <View style={{ gap: 16, marginBottom: 16 }}>
+                  <View>
+                    <Text style={styles.profileEditLabel}>Role</Text>
+                    <View style={styles.profileChipRow}>
+                      {([['stay', 'Stay'], ['host', 'Host'], ['both', 'Both']] as const).map(([val, label]) => (
+                        <Pressable key={val} style={[styles.profileChip, editRole === val && styles.profileChipOn]} onPress={() => setEditRole(val)}>
+                          <Text style={[styles.profileChipText, editRole === val && styles.profileChipTextOn]}>{label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                  <View>
+                    <Text style={styles.profileEditLabel}>Preference</Text>
+                    <View style={styles.profileChipRow}>
+                      {([['same_gender', 'Same gender'], ['no_preference', 'No preference'], ['open', 'Open']] as const).map(([val, label]) => (
+                        <Pressable key={val} style={[styles.profileChip, editCohabit === val && styles.profileChipOn]} onPress={() => setEditCohabit(val)}>
+                          <Text style={[styles.profileChipText, editCohabit === val && styles.profileChipTextOn]}>{label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                  {(editRole === 'stay' || editRole === 'both') && (
+                    <View>
+                      <Text style={styles.profileEditLabel}>Paying</Text>
+                      <View style={styles.profileChipRow}>
+                        {([['yes_always', 'Always'], ['depends', 'Depends'], ['prefer_free', 'Free only']] as const).map(([val, label]) => (
+                          <Pressable key={val} style={[styles.profileChip, editPaying === val && styles.profileChipOn]} onPress={() => setEditPaying(val)}>
+                            <Text style={[styles.profileChipText, editPaying === val && styles.profileChipTextOn]}>{label}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                  {(editRole === 'host' || editRole === 'both') && (
+                    <View>
+                      <Text style={styles.profileEditLabel}>Hosting fee</Text>
+                      <View style={styles.profileChipRow}>
+                        {([['yes', 'Paid'], ['free', 'Free'], ['depends', 'Depends']] as const).map(([val, label]) => (
+                          <Pressable key={val} style={[styles.profileChip, editCharging === val && styles.profileChipOn]} onPress={() => setEditCharging(val)}>
+                            <Text style={[styles.profileChipText, editCharging === val && styles.profileChipTextOn]}>{label}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Pressable style={styles.profileSaveBtn} onPress={saveEdit}>
+                      <Text style={styles.profileSaveBtnText}>Save</Text>
+                    </Pressable>
+                    <Pressable style={styles.profileCancelBtn} onPress={cancelEdit}>
+                      <Text style={styles.profileCancelBtnText}>Cancel</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  {savedRole && (
+                    <View style={styles.profileInfoBlock}>
+                      <Text style={styles.profileInfoLabel}>Role</Text>
+                      <Text style={styles.profileInfoValue}>{savedRole === 'stay' ? 'Looking to stay' : savedRole === 'host' ? 'Hosting others' : 'Stay & Host'}</Text>
+                    </View>
+                  )}
+                  {savedCohabit && (
+                    <View style={styles.profileInfoBlock}>
+                      <Text style={styles.profileInfoLabel}>Preference</Text>
+                      <Text style={styles.profileInfoValue}>{savedCohabit === 'same_gender' ? 'Same gender only' : savedCohabit === 'no_preference' ? 'No preference' : 'Open to discuss'}</Text>
+                    </View>
+                  )}
+                  {savedPaying && (savedRole === 'stay' || savedRole === 'both') && (
+                    <View style={styles.profileInfoBlock}>
+                      <Text style={styles.profileInfoLabel}>Paying</Text>
+                      <Text style={styles.profileInfoValue}>{savedPaying === 'yes_always' ? 'Always' : savedPaying === 'depends' ? 'Depends' : 'Free only'}</Text>
+                    </View>
+                  )}
+                  {savedCharging && (savedRole === 'host' || savedRole === 'both') && (
+                    <View style={styles.profileInfoBlock}>
+                      <Text style={styles.profileInfoLabel}>Hosting fee</Text>
+                      <Text style={styles.profileInfoValue}>{savedCharging === 'yes' ? 'Paid' : savedCharging === 'free' ? 'Free' : 'Depends'}</Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {activeView === 'connections' && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Connection Requests</Text>
+              </View>
+              {requests.length === 0 && (
+                <Text style={{ color: theme.textMuted, fontSize: 15, marginTop: 8 }}>
+                  No pending requests.
+                </Text>
+              )}
+              {requests.map((req) => (
+                <View key={req.id} style={styles.reqCard}>
+                  <Text style={styles.reqName}>{req.name}</Text>
+                  <Text style={styles.reqSchool}>{req.university}</Text>
+                  <View style={styles.reqRow}>
+                    <Pressable style={styles.acceptBtn} onPress={() => acceptRequest(req.id)}>
+                      <Text style={styles.acceptLabel}>Accept</Text>
+                    </Pressable>
+                    <Pressable style={styles.declineBtn} onPress={() => declineRequest(req.id)}>
+                      <Text style={styles.declineLabel}>Decline</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
         </View>
       </ScrollView>
 
