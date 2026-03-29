@@ -54,11 +54,9 @@ npm install
 3. Set up Supabase  
 - Create a project on Supabase  
 - Set up your database schema (users, connections, trips, messaging)  
-- Enable authentication (email / .edu recommended)  
 - Copy your **Project URL** and **Anon Public Key**
 4. Set up environment variables  
 Create a `.env` file in the root directory and add:
-
 ```env
 EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
@@ -75,4 +73,4 @@ npx expo start
 - Android Emulator  
 - Expo Go (mobile device)   
 
-### [Click here to watch our Demo Video]([https://youtu.be/0YCHKEUEQG8?si=Tr9yKawvncQL8XgJ ](https://youtube.com/video/mOG1gWjKqoo )
+### [Click here to watch our Demo Video](https://youtu.be/0YCHKEUEQG8?si=Tr9yKawvncQL8Xg)
